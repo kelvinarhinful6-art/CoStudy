@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      routes:
+        - id: auth
+          uri: http://auth-service:8080
+          predicates:
+            - Path=/api/auth/**
+        - id: learning
+          uri: http://learning-service:8080
+          predicates:
+            - Path=/api/groups/**,/api/matching/**,/api/invites/**
+        - id: tutoring
+          uri: http://tutoring-service:8080
+          predicates:
+            - Path=/api/tutor-applications/**,/api/admin/**,/api/tutors/**,/api/subscriptions/**,/api/bookings/**,/api/reviews/**
+        - id: engagement
+          uri: http://engagement-service:8080
+          predicates:
+            - Path=/api/notifications/**,/api/analytics/**,/api/ads/**
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
