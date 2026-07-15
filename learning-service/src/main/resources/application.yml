@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: learning-service
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+  servlet:
+    multipart:
+      max-file-size: 15MB
+      max-request-size: 15MB
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: learning
+    open-in-view: false
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Free plan: max groups created/joined. Pro lifts this later.
+free:
+  max-groups: 3
