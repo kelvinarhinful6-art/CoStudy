@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: tutoring-service
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: tutoring
+    open-in-view: false
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# All dev-configurable. Currency GHS for Ghana.
+billing:
+  currency: GHS
+  commission-pct: 20        # platform keeps 20% of each session fee
+  pro:
+    price: 49.99
+    currency: GHS
+    months: 1

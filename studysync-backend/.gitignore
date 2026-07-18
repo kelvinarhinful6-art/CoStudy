@@ -1,0 +1,15 @@
+# Build output
+target/
+*.class
+
+# Secrets - never commit the real .env
+.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

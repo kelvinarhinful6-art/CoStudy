@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: auth-service
+
+  # Connection to PostgreSQL. Values come from environment variables
+  # (set by docker-compose), so no secrets live in this file.
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+
+  jpa:
+    hibernate:
+      ddl-auto: update          # auto-create/update tables from our entities
+    properties:
+      hibernate:
+        default_schema: auth     # put auth-service tables in the "auth" schema
+        format_sql: true
+    open-in-view: false
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: always
+    include-message: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# JWT settings (also from environment variables)
+jwt:
+  secret: ${JWT_SECRET}
+  exp-min: ${JWT_EXP_MIN:15}
