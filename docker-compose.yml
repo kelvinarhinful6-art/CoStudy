@@ -1,0 +1,111 @@
+# One command runs everything:  docker compose up --build
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: studysync-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    build: { context: ., dockerfile: auth-service/Dockerfile }
+    container_name: studysync-auth
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP_MIN: ${JWT_EXP_MIN}
+    ports: ["8091:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  learning-service:
+    build: { context: ., dockerfile: learning-service/Dockerfile }
+    container_name: studysync-learning
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+      FREE_MAX_GROUPS: 10
+    volumes:
+      - chat_uploads:/app/uploads/chat
+    ports: ["8082:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  tutoring-service:
+    build: { context: ., dockerfile: tutoring-service/Dockerfile }
+    container_name: studysync-tutoring
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+    volumes:
+      - tutor_uploads:/app/uploads
+    ports: ["8083:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  engagement-service:
+    build: { context: ., dockerfile: engagement-service/Dockerfile }
+    container_name: studysync-engagement
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+    ports: ["8084:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  gateway:
+    build: { context: ., dockerfile: gateway/Dockerfile }
+    container_name: studysync-gateway
+    depends_on:
+      - auth-service
+      - learning-service
+      - tutoring-service
+      - engagement-service
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  chat_uploads:
+  tutor_uploads:
