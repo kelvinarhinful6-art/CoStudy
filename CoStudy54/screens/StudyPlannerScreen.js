@@ -58,9 +58,16 @@ export default function StudyPlannerScreen({ navigation }) {
   };
 
   const onDateChange = (event, selectedDate) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setDeadline(selectedDate);
+    if (Platform.OS === "android") {
+      setShowDatePicker(false); // Android auto-dismisses
+      if (event.type === "set" && selectedDate) {
+        setDeadline(selectedDate);
+      }
+    } else {
+      // iOS: Update live while scrolling, DON'T close the picker
+      if (selectedDate) {
+        setDeadline(selectedDate);
+      }
     }
   };
 
@@ -116,7 +123,14 @@ export default function StudyPlannerScreen({ navigation }) {
             </TouchableOpacity>
 
             {showDatePicker && (
-              <View style={{ backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 10, marginTop: 10, marginBottom: 12, alignItems: "center", paddingVertical: 8 }}>
+              <View style={styles.datePickerContainer}>
+                {Platform.OS === "ios" && (
+                  <View style={styles.datePickerHeader}>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                      <Text style={styles.doneBtnText}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <DateTimePicker
                   value={deadline || new Date()}
                   mode="date"
@@ -124,12 +138,13 @@ export default function StudyPlannerScreen({ navigation }) {
                   onChange={onDateChange}
                   textColor="#ffffff"
                   accentColor="#0b6f8e"
+                  style={{ width: "100%" }}
                 />
               </View>
             )}
 
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={[styles.modalBtn, styles.cancelBtn]} onPress={() => { setShowAdd(false); setDeadline(null); }} disabled={saving}>
+              <TouchableOpacity style={[styles.modalBtn, styles.cancelBtn]} onPress={() => { setShowAdd(false); setDeadline(null); setShowDatePicker(false); }} disabled={saving}>
                 <Text style={styles.modalBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, styles.saveBtn]} onPress={handleAdd} disabled={saving}>
@@ -161,6 +176,9 @@ const styles = StyleSheet.create({
   modalCard: { width: "100%", borderRadius: 20, padding: 24, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
   modalTitle: { color: "#fff", fontSize: 20, fontWeight: "600", marginBottom: 20, textAlign: "center" },
   input: { backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: "#fff", fontSize: 14, marginBottom: 12 },
+  datePickerContainer: { backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 10, marginBottom: 12, paddingBottom: 10 },
+  datePickerHeader: { alignItems: "flex-end", padding: 10 },
+  doneBtnText: { color: "#0b6f8e", fontSize: 16, fontWeight: "700" },
   modalBtnRow: { flexDirection: "row", gap: 10, marginTop: 8 },
   modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   cancelBtn: { backgroundColor: "rgba(255,255,255,0.16)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },

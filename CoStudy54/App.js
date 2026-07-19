@@ -1,4 +1,5 @@
 import React from "react";
+import { View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -11,6 +12,7 @@ import SettingsScreen from "./screens/SettingsScreen";
 import VettingTestScreen from "./screens/VettingTestScreen";
 import StudyPlannerScreen from "./screens/StudyPlannerScreen";
 import StudyTimerScreen from "./screens/StudyTimerScreen";
+import LoadingScreen from "./screens/LoadingScreen";
 import ChatScreen from "./screens/ChatScreen";
 import FindPeopleScreen from "./screens/FindPeopleScreen";
 import InvitesScreen from "./screens/InvitesScreen";
@@ -20,9 +22,16 @@ import SessionChatScreen from "./screens/SessionChatScreen";
 const Stack = createNativeStackNavigator();
 
 export default function App() {
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    setTimeout(() => setIsLoading(false), 2500); // Show loading for 2.5 seconds
+  }, []);
+
+  if (isLoading) return <LoadingScreen />;
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <View style={{ flex: 1, backgroundColor: '#0b3a4a' }}><NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Main" component={MainTabs} />
@@ -39,7 +48,7 @@ export default function App() {
           <Stack.Screen name="TutorSessions" component={TutorSessionsScreen} />
           <Stack.Screen name="SessionChat" component={SessionChatScreen} />
         </Stack.Navigator>
-      </NavigationContainer>
+      </NavigationContainer></View>
     </SafeAreaProvider>
   );
 }

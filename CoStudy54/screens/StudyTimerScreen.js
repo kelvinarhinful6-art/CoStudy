@@ -4,22 +4,21 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Haptics from "expo-haptics";
 import SkyBackground from "./SkyBackground";
 import { colors } from "../theme";
 import { logStudySession, getStudySessions } from "../api";
 
 export default function StudyTimerScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState("focus"); // focus | break
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 mins in seconds
+  const [mode, setMode] = useState("focus");
+  const [duration, setDuration] = useState(25);
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [subject, setSubject] = useState("");
   const [sessions, setSessions] = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
   const intervalRef = useRef(null);
-
-  const focusTime = 25 * 60;
-  const breakTime = 5 * 60;
 
   const loadStats = useCallback(async () => {
     try {
@@ -37,22 +36,25 @@ export default function StudyTimerScreen({ navigation }) {
       }, 1000);
     } else if (timeLeft === 0) {
       setIsActive(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
       if (mode === "focus") {
-        Alert.alert("Focus Session Complete!", "Time for a 5-minute break.");
-        logSession(focusTime);
+        Alert.alert("Focus Session Complete! 🎉", "Great job! Time for a well-deserved break.");
+        logSession(duration);
         setMode("break");
-        setTimeLeft(breakTime);
+        setDuration(5);
+        setTimeLeft(5 * 60);
       } else {
-        Alert.alert("Break Over!", "Ready for another focus session?");
+        Alert.alert("Break Over! ⏰", "Ready for another focus session?");
         setMode("focus");
-        setTimeLeft(focusTime);
+        setDuration(25);
+        setTimeLeft(25 * 60);
       }
     }
     return () => clearInterval(intervalRef.current);
   }, [isActive, timeLeft, mode]);
 
-  const logSession = async (seconds) => {
-    const minutes = Math.round(seconds / 60);
+  const logSession = async (minutes) => {
     if (minutes > 0) {
       try { await logStudySession(subject.trim() || "General", minutes); await loadStats(); }
       catch (e) { console.log("Failed to log session", e.message); }
@@ -60,19 +62,31 @@ export default function StudyTimerScreen({ navigation }) {
   };
 
   const toggleTimer = () => {
-    if (!isActive && mode === "focus" && timeLeft === focusTime && !subject.trim()) {
+    if (!isActive && mode === "focus" && timeLeft === duration * 60 && !subject.trim()) {
       Alert.alert("Enter Subject", "Please enter the subject you are studying to track it.");
       return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsActive(!isActive);
   };
 
+  const changeDuration = (mins) => {
+    if (isActive) return;
+    Haptics.selectionAsync();
+    setDuration(mins);
+    setTimeLeft(mins * 60);
+  };
+
   const resetTimer = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsActive(false);
-    if (mode === "focus") {
-      logSession(focusTime - timeLeft); // Log partial time
+    if (mode === "focus" && timeLeft < duration * 60) {
+      const elapsedMins = Math.round((duration * 60 - timeLeft) / 60);
+      if (elapsedMins > 0) {
+        logSession(elapsedMins);
+      }
     }
-    setTimeLeft(mode === "focus" ? focusTime : breakTime);
+    setTimeLeft(duration * 60);
   };
 
   const formatTime = (s) => {
@@ -81,9 +95,12 @@ export default function StudyTimerScreen({ navigation }) {
     return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
+  const progress = timeLeft / (duration * 60);
+
   const totalMinsToday = sessions.filter(s => new Date(s.sessionDate).toDateString() === new Date().toDateString()).reduce((sum, s) => sum + s.durationMinutes, 0);
   const hoursToday = Math.floor(totalMinsToday / 60);
   const minsToday = totalMinsToday % 60;
+  const sessionsToday = sessions.filter(s => new Date(s.sessionDate).toDateString() === new Date().toDateString()).length;
 
   return (
     <SkyBackground>
@@ -93,10 +110,31 @@ export default function StudyTimerScreen({ navigation }) {
           <Text style={styles.title}>Study Timer</Text>
         </View>
 
-        <BlurView intensity={mode === "focus" ? 40 : 20} tint="dark" style={styles.timerCard}>
-          <Text style={styles.modeText}>{mode === "focus" ? "Focus Mode" : "Break Time"}</Text>
+        <View style={styles.modeToggle}>
+          <TouchableOpacity 
+            style={[styles.modeBtn, mode === "focus" && styles.modeBtnActive]} 
+            onPress={() => { if(!isActive){ setMode("focus"); setDuration(25); setTimeLeft(25*60); } }}
+          >
+            <Text style={[styles.modeBtnText, mode === "focus" && styles.modeBtnTextActive]}>Focus</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.modeBtn, mode === "break" && styles.modeBtnActive]} 
+            onPress={() => { if(!isActive){ setMode("break"); setDuration(5); setTimeLeft(5*60); } }}
+          >
+            <Text style={[styles.modeBtnText, mode === "break" && styles.modeBtnTextActive]}>Break</Text>
+          </TouchableOpacity>
+        </View>
+
+        <BlurView intensity={mode === "focus" ? 30 : 20} tint="dark" style={styles.timerCard}>
+          <Text style={styles.modeLabel}>{mode === "focus" ? "Focus Mode" : "Break Time"}</Text>
+          
           <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
           
+          {/* Built-in Linear Progress Bar */}
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressBar, { width: `${progress * 100}%`, backgroundColor: mode === "focus" ? "#fff" : "#1f9d6b" }]} />
+          </View>
+
           {mode === "focus" && (
             <TextInput
               style={styles.subjectInput}
@@ -107,12 +145,26 @@ export default function StudyTimerScreen({ navigation }) {
             />
           )}
 
+          {!isActive && (
+            <View style={styles.durationRow}>
+              {[15, 25, 50].map((m) => (
+                <TouchableOpacity 
+                  key={m} 
+                  style={[styles.durationChip, duration === m && styles.durationChipActive]} 
+                  onPress={() => changeDuration(m)}
+                >
+                  <Text style={[styles.durationText, duration === m && styles.durationTextActive]}>{m}m</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           <View style={styles.controlsRow}>
             <TouchableOpacity style={styles.controlBtn} onPress={toggleTimer}>
-              <Ionicons name={isActive ? "pause-circle" : "play-circle"} size={56} color="#fff" />
+              <Ionicons name={isActive ? "pause-circle" : "play-circle"} size={64} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.controlBtn} onPress={resetTimer}>
-              <Ionicons name="refresh-circle" size={40} color="rgba(255,255,255,0.7)" />
+              <Ionicons name="refresh-circle" size={44} color="rgba(255,255,255,0.6)" />
             </TouchableOpacity>
           </View>
         </BlurView>
@@ -121,10 +173,18 @@ export default function StudyTimerScreen({ navigation }) {
         {loadingStats ? (
           <ActivityIndicator color="#fff" style={{ marginTop: 16 }} />
         ) : (
-          <BlurView intensity={24} tint="light" style={styles.statsCard}>
-            <Ionicons name="time-outline" size={24} color="#fff" />
-            <Text style={styles.statsText}>Studied today: {hoursToday > 0 ? `${hoursToday}h ` : ""}{minsToday}m</Text>
-          </BlurView>
+          <View style={styles.statsRow}>
+            <BlurView intensity={24} tint="light" style={styles.statsCard}>
+              <Ionicons name="time-outline" size={24} color="#fff" />
+              <Text style={styles.statsText}>{hoursToday > 0 ? `${hoursToday}h ` : ""}{minsToday}m</Text>
+              <Text style={styles.statsSub}>Studied Today</Text>
+            </BlurView>
+            <BlurView intensity={24} tint="light" style={styles.statsCard}>
+              <Ionicons name="checkmark-done-outline" size={24} color="#fff" />
+              <Text style={styles.statsText}>{sessionsToday}</Text>
+              <Text style={styles.statsSub}>Sessions</Text>
+            </BlurView>
+          </View>
         )}
       </View>
     </SkyBackground>
@@ -134,13 +194,27 @@ export default function StudyTimerScreen({ navigation }) {
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 24 },
   title: { color: colors.white, fontSize: 22, fontWeight: "600" },
-  timerCard: { borderRadius: 24, padding: 32, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
-  modeText: { color: "rgba(255,255,255,0.7)", fontSize: 16, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 },
-  timerText: { color: "#fff", fontSize: 64, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  subjectInput: { backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: "#fff", fontSize: 14, marginTop: 24, width: "100%", textAlign: "center" },
-  controlsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 20, marginTop: 24 },
+  modeToggle: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 12, padding: 4, marginBottom: 24 },
+  modeBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
+  modeBtnActive: { backgroundColor: "rgba(11, 111, 142, 0.5)" },
+  modeBtnText: { color: "rgba(255,255,255,0.6)", fontWeight: "600", fontSize: 14 },
+  modeBtnTextActive: { color: "#fff" },
+  timerCard: { borderRadius: 24, padding: 24, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", marginBottom: 24 },
+  modeLabel: { color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 },
+  timerText: { color: "#fff", fontSize: 64, fontWeight: "700", fontVariant: ["tabular-nums"], marginBottom: 20 },
+  progressTrack: { width: "100%", height: 8, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 4, overflow: "hidden", marginBottom: 24 },
+  progressBar: { height: "100%", borderRadius: 4 },
+  subjectInput: { backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, color: "#fff", fontSize: 14, width: "100%", textAlign: "center", marginBottom: 20 },
+  durationRow: { flexDirection: "row", justifyContent: "center", gap: 10, marginBottom: 20 },
+  durationChip: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  durationChipActive: { backgroundColor: "#fff", borderColor: "#fff" },
+  durationText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  durationTextActive: { color: "#0b6f8e" },
+  controlsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 20 },
   controlBtn: { padding: 4 },
-  statsTitle: { color: "rgba(255,255,255,0.8)", fontSize: 16, fontWeight: "600", marginBottom: 12, marginTop: 24 },
-  statsCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
-  statsText: { color: "#fff", fontSize: 16, fontWeight: "600" }
+  statsTitle: { color: "rgba(255,255,255,0.8)", fontSize: 16, fontWeight: "600", marginBottom: 12 },
+  statsRow: { flexDirection: "row", gap: 12 },
+  statsCard: { flex: 1, borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", gap: 4 },
+  statsText: { color: "#fff", fontSize: 20, fontWeight: "700" },
+  statsSub: { color: "rgba(255,255,255,0.6)", fontSize: 12 }
 });
