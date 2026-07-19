@@ -21,6 +21,8 @@ public class AppUser {
     private UserType userType;
     @Column(nullable = false)
     private boolean verified = false;
+    @Column(name = "verification_code")
+    private String verificationCode;
     @Column(name = "full_name")
     private String fullName;
     @Column(name = "program")
@@ -57,6 +59,8 @@ public class AppUser {
     public void setUserType(UserType userType) { this.userType = userType; }
     public boolean isVerified() { return verified; }
     public void setVerified(boolean verified) { this.verified = verified; }
+    public String getVerificationCode() { return verificationCode; }
+    public void setVerificationCode(String verificationCode) { this.verificationCode = verificationCode; }
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
     public String getProgram() { return program; }

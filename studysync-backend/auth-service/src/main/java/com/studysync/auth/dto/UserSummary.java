@@ -5,6 +5,7 @@ public record UserSummary(
     String username,
     String email,
     UserType userType,
+    boolean verified,
     String fullName,
     String program,
     Integer age,

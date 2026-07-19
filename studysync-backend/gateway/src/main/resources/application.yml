@@ -15,7 +15,7 @@ spring:
         - id: tutoring
           uri: http://tutoring-service:8080
           predicates:
-            - Path=/api/tutor-applications/**,/api/admin/**,/api/tutors/**,/api/subscriptions/**,/api/bookings/**,/api/reviews/**
+            - Path=/api/tutor-applications/**,/api/admin/**,/api/tutors/**,/api/subscriptions/**,/api/bookings/**,/api/reviews/**,/api/courses/**
         - id: engagement
           uri: http://engagement-service:8080
           predicates:
