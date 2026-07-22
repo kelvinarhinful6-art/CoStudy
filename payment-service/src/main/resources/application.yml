@@ -1,0 +1,34 @@
+﻿spring:
+  application:
+    name: payment-service
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: payment
+    open-in-view: false
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+paystack:
+  base-url: https://api.paystack.co
+  secret-key: ${PAYSTACK_SECRET_KEY}
+  public-key: ${PAYSTACK_PUBLIC_KEY}
+  callback-url: ${PAYSTACK_CALLBACK_URL:http://localhost:8080/api/payments/callback}

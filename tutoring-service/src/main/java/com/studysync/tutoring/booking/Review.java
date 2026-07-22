@@ -25,6 +25,7 @@ public class Review {
     @PrePersist void onCreate() { createdAt = Instant.now(); }
 
     public UUID getReviewId() { return reviewId; }
+    public UUID getBookingId() { return bookingId; }
     public void setBookingId(UUID v) { this.bookingId = v; }
     public String getStudentId() { return studentId; }
     public void setStudentId(String v) { this.studentId = v; }

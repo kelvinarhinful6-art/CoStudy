@@ -1,51 +1,56 @@
 package com.studysync.tutoring.exception;
 
-import com.studysync.shared.ApiError;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
-import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex,
-                                                     HttpServletRequest req) {
-        String msg = ex.getBindingResult().getFieldErrors().stream()
-                .findFirst().map(f -> f.getField() + " " + f.getDefaultMessage())
-                .orElse("validation error");
-        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", msg, req);
-    }
-
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<ApiError> handleBad(BadRequestException ex, HttpServletRequest req) {
-        return build(HttpStatus.BAD_REQUEST, "BAD_REQUEST", ex.getMessage(), req);
+    public ResponseEntity<Map<String, Object>> handleBad(BadRequestException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("error", "Bad Request");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
     @ExceptionHandler(NotFoundException.class)
-    public ResponseEntity<ApiError> handleNotFound(NotFoundException ex, HttpServletRequest req) {
-        return build(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage(), req);
+    public ResponseEntity<Map<String, Object>> handleNotFound(NotFoundException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("error", "Not Found");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
-    @ExceptionHandler(ForbiddenException.class)
-    public ResponseEntity<ApiError> handleForbidden(ForbiddenException ex, HttpServletRequest req) {
-        return build(HttpStatus.FORBIDDEN, "PRO_REQUIRED", ex.getMessage(), req);
+    // No @RequestMapping matched the request (e.g. a removed endpoint).
+    // Without this, Spring falls through to the static-resource handler and 500s;
+    // we want a clean 404. Requires spring.mvc.throw-exception-if-no-handler-found.
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoHandler(NoHandlerFoundException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("error", "Not Found");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiError> handleOther(Exception ex, HttpServletRequest req) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL", "unexpected error", req);
-    }
-
-    private ResponseEntity<ApiError> build(HttpStatus status, String code, String msg,
-                                           HttpServletRequest req) {
-        ApiError e = new ApiError(Instant.now(), status.value(), status.getReasonPhrase(),
-                code, msg, req.getRequestURI());
-        return ResponseEntity.status(status).body(e);
+    public ResponseEntity<Map<String, Object>> handleAll(Exception ex) {
+        System.out.println("========== TUTORING BACKEND ERROR ==========");
+        ex.printStackTrace();
+        System.out.println("===================================");
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        body.put("error", "Internal Server Error");
+        body.put("message", ex.getClass().getSimpleName() + ": " + ex.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 }

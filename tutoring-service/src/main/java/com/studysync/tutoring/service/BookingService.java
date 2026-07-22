@@ -40,11 +40,10 @@ public class BookingService {
     // A tutor (or admin) sets the hourly rate for an approved course.
     @Transactional
     public void setRate(String tutorId, SetRateRequest req) {
-        TutorApplication app = applications.findByUserIdAndCourseId(tutorId, req.courseId())
-                .orElseThrow(() -> new NotFoundException("no application for this tutor/course"));
-        if (app.getStatus() != ApplicationStatus.APPROVED) {
-            throw new BadRequestException("tutor is not approved for this course");
-        }
+        TutorApplication app = applications.findByUserIdAndCourseId(tutorId, req.courseId()).stream()
+                .filter(a -> a.getStatus() == ApplicationStatus.APPROVED)
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("tutor is not approved for this course"));
         app.setHourlyRate(req.hourlyRate());
         applications.save(app);
     }
@@ -55,11 +54,10 @@ public class BookingService {
         if (!subscriptions.isPro(req.studentId())) {
             throw new ForbiddenException("Pro subscription required to book a tutor");
         }
-        TutorApplication app = applications.findByUserIdAndCourseId(req.tutorId(), req.courseId())
+        TutorApplication app = applications.findByUserIdAndCourseId(req.tutorId(), req.courseId()).stream()
+                .filter(a -> a.getStatus() == ApplicationStatus.APPROVED)
+                .findFirst()
                 .orElseThrow(() -> new NotFoundException("tutor not found for this course"));
-        if (app.getStatus() != ApplicationStatus.APPROVED) {
-            throw new BadRequestException("tutor is not approved for this course");
-        }
         if (app.getHourlyRate() == null) {
             throw new BadRequestException("tutor has not set an hourly rate yet");
         }
@@ -188,5 +186,9 @@ public class BookingService {
                 b.getCourseId(), b.getHours(), b.getHourlyRate(), b.getGrossAmount(),
                 b.getCommissionPct(), b.getPlatformFee(), b.getTutorEarning(),
                 b.getCurrency(), b.getStatus().name(), b.getZoomLink());
+    }
+    @Transactional
+    public void deleteBooking(UUID bookingId) {
+        bookings.findById(bookingId).ifPresent(bookings::delete);
     }
 }

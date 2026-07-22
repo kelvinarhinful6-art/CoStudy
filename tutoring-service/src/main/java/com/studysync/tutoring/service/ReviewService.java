@@ -22,7 +22,7 @@ public class ReviewService {
         this.reviews = reviews; this.bookings = bookings;
     }
 
-    // A student reviews a tutor, only after a completed session.
+    // A student reviews a tutor, only after a completed session. Idempotent per booking.
     @Transactional
     public ReviewResponse create(CreateReviewRequest req) {
         UUID bookingId;
@@ -33,6 +33,13 @@ public class ReviewService {
                 .orElseThrow(() -> new NotFoundException("booking not found"));
         if (b.getStatus() != BookingStatus.COMPLETED) {
             throw new BadRequestException("you can only review a completed session");
+        }
+        // Prevent duplicate reviews for the same booking.
+        if (reviews.existsByBookingId(bookingId)) {
+            return reviews.findByBookingId(bookingId).stream()
+                    .findFirst()
+                    .map(this::toResponse)
+                    .orElseThrow(() -> new NotFoundException("review not found"));
         }
         Review r = new Review();
         r.setBookingId(b.getBookingId());
@@ -56,6 +63,7 @@ public class ReviewService {
 
     private ReviewResponse toResponse(Review r) {
         return new ReviewResponse(r.getReviewId().toString(), r.getTutorId(), r.getStudentId(),
-                r.getCourseId(), r.getRating(), r.getComment(), r.getCreatedAt().toString());
+                r.getCourseId(), r.getBookingId().toString(), r.getRating(), r.getComment(),
+                r.getCreatedAt().toString());
     }
 }
