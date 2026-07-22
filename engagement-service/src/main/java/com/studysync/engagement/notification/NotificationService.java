@@ -13,7 +13,14 @@ import java.util.UUID;
 public class NotificationService {
 
     private final NotificationRepository repo;
-    public NotificationService(NotificationRepository repo) { this.repo = repo; }
+    private final PushTokenRepository pushTokens;
+    private final ExpoPushService expo;
+
+    public NotificationService(NotificationRepository repo, PushTokenRepository pushTokens, ExpoPushService expo) {
+        this.repo = repo;
+        this.pushTokens = pushTokens;
+        this.expo = expo;
+    }
 
     @Transactional
     public NotificationResponse create(CreateNotificationRequest req) {
@@ -23,7 +30,22 @@ public class NotificationService {
         n.setMessage(req.message());
         n.setRead(false);
         repo.save(n);
+
+        // Push to every registered device for this user (lock-screen notification).
+        String title = titleFor(req.type());
+        for (PushToken t : pushTokens.findByUserId(req.userId())) {
+            expo.send(t.getToken(), title, req.message());
+        }
         return toResponse(n);
+    }
+
+    private String titleFor(String type) {
+        return switch (type) {
+            case "CHAT" -> "New message";
+            case "INVITE" -> "Group invite";
+            case "BOOKING" -> "Booking update";
+            default -> "CoStudy";
+        };
     }
 
     @Transactional(readOnly = true)

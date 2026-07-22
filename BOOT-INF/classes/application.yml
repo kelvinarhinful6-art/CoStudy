@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   application:
     name: gateway
   cloud:
@@ -21,7 +21,7 @@
         # Tutor assessment PDFs are served by tutoring-service at
         # /uploads/questions/**. Applicants download them through the gateway,
         # so this MUST be matched before the learning-service /uploads/** route
-        # below (route order matters) â€” otherwise the download 404s.
+        # below (route order matters) — otherwise the download 404s.
         - id: tutoring-uploads
           uri: http://tutoring-service:8080
           predicates:
@@ -30,7 +30,7 @@
             - StripPrefix=0
         # Uploaded chat media (images/files) is served by learning-service at
         # /uploads/chat/**. The app fetches it from the same gateway host/port
-        # (FILE_HOST), so the gateway must proxy it too â€” otherwise every
+        # (FILE_HOST), so the gateway must proxy it too — otherwise every
         # media GET 404s and attachments are invisible / unopenable.
         - id: learning-uploads
           uri: http://learning-service:8080
@@ -47,10 +47,6 @@
           predicates:
             - Path=/api/notifications/**,/api/analytics/**,/api/ads/**
 
-        - id: payment
-          uri: http://payment-service:8080
-          predicates:
-            - Path=/api/payments/**
 server:
   port: 8080
 
@@ -58,4 +54,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health,info

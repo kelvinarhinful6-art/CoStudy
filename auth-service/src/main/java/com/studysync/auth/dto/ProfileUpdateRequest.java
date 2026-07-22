@@ -4,5 +4,6 @@ public record ProfileUpdateRequest(
     String fullName,
     String program,
     Integer age,
-    Integer yearOfStudy
+    Integer yearOfStudy,
+    String tutorDisplayName
 ) {}

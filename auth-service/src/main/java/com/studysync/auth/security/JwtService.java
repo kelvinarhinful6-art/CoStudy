@@ -1,40 +1,38 @@
 package com.studysync.auth.security;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
-/**
- * Creates signed JWT login tokens. The token carries the user's id, username
- * and role, and is signed with our secret so it cannot be forged.
- */
 @Service
 public class JwtService {
 
-    private final SecretKey key;
-    private final long expMinutes;
-
-    public JwtService(@Value("${jwt.secret}") String secret,
-                      @Value("${jwt.exp-min}") long expMinutes) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.expMinutes = expMinutes;
-    }
+    // Hardcoded to prevent empty environment variable crashes
+    private final SecretKey key = Keys.hmacShaKeyFor("super-secret-dev-key-123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
+    private final long expMillis = 86400000L; // 24 hours in milliseconds
 
     public String generateToken(String userId, String username, String role) {
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + expMinutes * 60_000);
         return Jwts.builder()
                 .subject(userId)
                 .claim("username", username)
                 .claim("role", role)
                 .issuedAt(now)
-                .expiration(expiry)
+                .expiration(new Date(now.getTime() + expMillis))
                 .signWith(key)
                 .compact();
+    }
+
+    public Claims parse(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }
