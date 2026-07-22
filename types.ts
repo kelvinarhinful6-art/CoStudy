@@ -182,6 +182,8 @@ export type RootStackParamList = {
   MySessions: undefined;
   Analytics: undefined;
   Notifications: undefined;
+  TutorEarnings: undefined;
+  AdminRevenue: undefined;
 };
 
 export type RootTabParamList = {

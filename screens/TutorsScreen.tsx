@@ -9,13 +9,14 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Linking,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import SkyBackground from "./SkyBackground";
-import { session, proStatus, proPlan, subscribePro, listTutors, bookTutor, listUsers } from "../api";
+import { session, proStatus, proPlan, subscribePro, listTutors, bookTutor, listUsers, initiatePayment } from "../api";
 import type { Plan, TabProps, User } from "../types";
 
 const HOUR_OPTIONS = [1, 2, 3];
@@ -66,9 +67,21 @@ export default function TutorsScreen() {
   const handleSubscribe = async () => {
     setSubscribing(true);
     try {
-      await subscribePro();
-      await loadStatus();
-      Alert.alert("You are Pro", "Tutor access unlocked.");
+      const amountKobo = Math.round(((plan && plan.price) || 0) * 100);
+      const email = session.user ? session.user.email : "guest@costudy.com";
+      const payment = await initiatePayment(amountKobo, "pro_subscription", email);
+      Alert.alert(
+        "Complete payment to go Pro",
+        `${plan ? plan.price + " " + plan.currency : ""}\n\nOpening secure Paystack checkout...`,
+        [{
+          text: "Pay now",
+          onPress: async () => {
+            await Linking.openURL(payment.authorizationUrl);
+            await subscribePro();
+            await loadStatus();
+          },
+        }]
+      );
     } catch (e) {
       Alert.alert("Upgrade failed", (e as Error).message);
     } finally {
@@ -107,9 +120,13 @@ export default function TutorsScreen() {
     setBookingId(tutorId);
     try {
       const b = await bookTutor(tutorId, course.trim().toUpperCase(), hours);
+      const amountKobo = Math.round((b.grossAmount || 0) * 100);
+      const email = session.user ? session.user.email : "guest@costudy.com";
+      const payment = await initiatePayment(amountKobo, "tutoring_booking", email);
       Alert.alert(
-        "Booking confirmed",
-        `${hours} hr with ${displayName}\nTotal: ${b.grossAmount} ${b.currency}\nStatus: ${b.status}`
+        "Booking confirmed - complete payment",
+        `${hours} hr with ${displayName}\nTotal: ${b.grossAmount} ${b.currency}\n\nOpening secure Paystack checkout...`,
+        [{ text: "Pay now", onPress: () => Linking.openURL(payment.authorizationUrl) }]
       );
     } catch (e) {
       Alert.alert("Booking failed", (e as Error).message);

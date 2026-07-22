@@ -474,3 +474,35 @@ export async function resignApplication(appId: string): Promise<any> {
     body: { userId: myId() },
   });
 }
+
+
+// --- Payments (Paystack via payment-service) ---
+export async function initiatePayment(
+  amountKobo: number,
+  purpose: string,
+  email: string
+): Promise<any> {
+  return request('/api/payments/initiate', {
+    method: 'POST',
+    body: { userId: myId(), email, amountKobo, purpose },
+  });
+}
+
+export async function verifyPayment(reference: string): Promise<any> {
+  return request(`/api/payments/verify/${encodeURIComponent(reference)}`);
+}
+
+
+// --- Revenue / Earnings ---
+export async function tutorEarnings(tutorId: string): Promise<any> {
+  return request(`/api/tutors/${encodeURIComponent(tutorId)}/earnings`);
+}
+
+export async function adminTutoringRevenue(): Promise<any> {
+  return request('/api/admin/revenue/tutoring');
+}
+
+export async function adminProRevenue(): Promise<any> {
+  return request('/api/payments/revenue/pro');
+}
+

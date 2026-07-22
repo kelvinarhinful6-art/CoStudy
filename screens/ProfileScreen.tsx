@@ -318,6 +318,32 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
           </BlurView>
         </TouchableOpacity>
 
+        {apps.some((a) => a.status === "APPROVED") && (
+          <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate("TutorEarnings")}>
+            <BlurView intensity={28} tint="light" style={styles.actionCard}>
+              <Ionicons name="cash" size={22} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionTitle}>My Earnings</Text>
+                <Text style={styles.actionSub}>See what you've made from tutoring sessions</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+            </BlurView>
+          </TouchableOpacity>
+        )}
+
+        {isAdmin && (
+          <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate("AdminRevenue")}>
+            <BlurView intensity={28} tint="light" style={styles.actionCard}>
+              <Ionicons name="trending-up" size={22} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionTitle}>Total App Revenue</Text>
+                <Text style={styles.actionSub}>Tutoring + Pro subscription revenue this year</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+            </BlurView>
+          </TouchableOpacity>
+        )}
+
         {isAdmin && (
           <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate("AdminReview")}>
             <BlurView intensity={28} tint="light" style={styles.actionCard}>

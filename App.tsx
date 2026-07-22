@@ -20,6 +20,8 @@ import ReviewScreen from "./screens/ReviewScreen";
 import MySessionsScreen from "./screens/MySessionsScreen";
 import AnalyticsScreen from "./screens/AnalyticsScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
+import TutorEarningsScreen from "./screens/TutorEarningsScreen";
+import AdminRevenueScreen from "./screens/AdminRevenueScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -51,6 +53,8 @@ export default function App() {
             <Stack.Screen name="MySessions" component={MySessionsScreen} />
             <Stack.Screen name="Analytics" component={AnalyticsScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="TutorEarnings" component={TutorEarningsScreen} />
+            <Stack.Screen name="AdminRevenue" component={AdminRevenueScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </View>

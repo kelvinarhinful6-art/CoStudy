@@ -1,16 +1,15 @@
 {
   "expo": {
-    "name": "CoStudy54",
+    "name": "CoStudy",
     "slug": "CoStudy54",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0b3a4a"
     },
     "ios": {
       "supportsTablet": true
@@ -18,12 +17,27 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+        "backgroundColor": "#0b3a4a"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow CoStudy to use your camera to capture photos for chat and profiles.",
+          "photosPermission": "Allow CoStudy to access your photo library to share images in chat."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0b6f8e"
+        }
+      ]
+    ]
   }
 }
