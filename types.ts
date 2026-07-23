@@ -36,7 +36,10 @@ export interface Group {
   groupId: string;
   groupName: string;
   courseId?: string;
+  description?: string;
   memberCount?: number;
+  matchScore?: number;
+  isMember?: boolean;
   [key: string]: any;
 }
 
@@ -103,6 +106,7 @@ export interface StudyTask {
 export interface StudySession {
   sessionId?: string;
   sessionDate?: string;
+  subject?: string;
   durationMinutes?: number;
   [key: string]: any;
 }
@@ -116,13 +120,23 @@ export interface Plan {
 
 export interface Review {
   reviewId?: string;
+  id?: string;
   tutorId?: string;
   studentId?: string;
   courseId?: string;
+  bookingId?: string;
   rating?: number;
   comment?: string;
   createdAt?: string;
   [key: string]: any;
+}
+
+export interface TutorReviewsData {
+  tutorId: string;
+  averageRating: number;
+  count: number;
+  reviews: Review[];
+  ratingDistribution?: { [key: number]: number };
 }
 
 export interface DayBucket {
@@ -135,6 +149,16 @@ export interface AnalyticsResponse {
   totalMinutes: number;
   totalSessions: number;
   byDay: DayBucket[];
+  dailyMinutes?: number;
+  weeklyMinutes?: number;
+  monthlyMinutes?: number;
+  subjectBreakdown?: { [subject: string]: number };
+  longestSessionMinutes?: number;
+  averageSessionDuration?: number;
+  currentStreakDays?: number;
+  mostProductiveDay?: string;
+  mostStudiedSubject?: string;
+  insights?: string[];
 }
 
 export interface AppNotification {
@@ -178,12 +202,17 @@ export type RootStackParamList = {
   Invites: undefined;
   TutorSessions: undefined;
   SessionChat: { bookingId: string; title?: string };
-  Review: { bookingId: string; tutorId: string; tutorName?: string };
+  Review: { bookingId: string; tutorId: string; tutorName?: string; existingReviewId?: string; initialRating?: number; initialComment?: string };
+
   MySessions: undefined;
   Analytics: undefined;
   Notifications: undefined;
   TutorEarnings: undefined;
   AdminRevenue: undefined;
+  SupportList: undefined;
+  SupportChat: { recipientId: string; recipientName: string; roomKey: string };
+  AdminDashboard: undefined;
+  AdminTutorDetail: { tutorId: string; tutorName?: string };
 };
 
 export type RootTabParamList = {
