@@ -32,4 +32,9 @@ public class NotificationController {
     public NotificationResponse markRead(@PathVariable UUID id) {
         return service.markRead(id);
     }
+
+    @PostMapping("/read-all")
+    public void markAllRead(@RequestParam String userId) {
+        service.markAllRead(userId);
+    }
 }

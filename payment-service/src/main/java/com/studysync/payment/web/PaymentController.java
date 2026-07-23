@@ -28,6 +28,17 @@ public class PaymentController {
         return paystackService.verify(reference);
     }
 
+    public static class ReleaseEscrowRequest {
+        private boolean sessionCompleted;
+        public boolean isSessionCompleted() { return sessionCompleted; }
+        public void setSessionCompleted(boolean sessionCompleted) { this.sessionCompleted = sessionCompleted; }
+    }
+
+    @PostMapping("/{reference}/release")
+    public ResponseEntity<?> releaseEscrow(@PathVariable String reference, @RequestBody ReleaseEscrowRequest request) {
+        return ResponseEntity.ok(paystackService.releaseEscrow(reference, request.isSessionCompleted()));
+    }
+
     // TODO before going live: verify the x-paystack-signature HMAC header
     // against the raw payload using the secret key before trusting this.
     @PostMapping("/webhook")

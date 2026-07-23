@@ -11,15 +11,19 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.util.Map;
 import java.util.UUID;
 
+import com.studysync.payment.client.NotificationClient;
+
 @Service
 public class PaystackService {
 
     private final WebClient paystackWebClient;
     private final PaymentTransactionRepository repository;
+    private final NotificationClient notificationClient;
 
-    public PaystackService(WebClient paystackWebClient, PaymentTransactionRepository repository) {
+    public PaystackService(WebClient paystackWebClient, PaymentTransactionRepository repository, NotificationClient notificationClient) {
         this.paystackWebClient = paystackWebClient;
         this.repository = repository;
+        this.notificationClient = notificationClient;
     }
 
     @SuppressWarnings("unchecked")
@@ -67,11 +71,23 @@ public class PaystackService {
 
         if ("success".equals(status)) {
             tx.markSuccess();
+            double ghcAmount = (tx.getAmountKobo() != null ? tx.getAmountKobo() : 0L) / 100.0;
+            notificationClient.notify(tx.getUserId(), "PAYMENT_SUCCESS",
+                    String.format("Payment of GH₵%.2f was successful.", ghcAmount));
         } else {
             tx.markFailed();
+            notificationClient.notify(tx.getUserId(), "PAYMENT_FAILED",
+                    "Your payment could not be completed. Please try again.");
         }
         repository.save(tx);
 
         return new VerifyPaymentResponse(tx.getReference(), tx.getStatus().name(), tx.getAmountKobo(), tx.getPurpose());
+    }
+
+    public PaymentTransaction releaseEscrow(String reference, boolean sessionCompleted) {
+        PaymentTransaction tx = repository.findByReference(reference)
+                .orElseThrow(() -> new NotFoundException("No transaction found for reference " + reference));
+        tx.releaseEscrow(sessionCompleted);
+        return repository.save(tx);
     }
 }

@@ -51,8 +51,8 @@ public class ChatController {
         // StudyGroup. Only the tutor and student of that booking know the id, so they are
         // protected the same way group chats are (unguessable UUIDs over an unauthenticated
         // WebSocket). We skip the StudyGroup membership check and member notifications for them.
-        final boolean isBookingRoom = isBookingRoom(groupId);
-        if (!isBookingRoom
+        final boolean isBookingOrSupport = isDirectRoom(groupId);
+        if (!isBookingOrSupport
                 && !members.existsByGroupIdAndUserId(UUID.fromString(groupId), in.senderId())) {
             throw new BadRequestException("You are not a member of this group");
         }
@@ -75,8 +75,8 @@ public class ChatController {
         broker.convertAndSend("/topic/group." + groupId, toView(saved));
 
         // Notify every other member (in-app + push) without blocking the send.
-        // Booking/session rooms skip this — only the two participants are in the room.
-        if (!isBookingRoom) {
+        // Booking/session and support rooms skip this — only the two participants are in the room.
+        if (!isBookingOrSupport) {
             String groupName = groupRepo.findById(UUID.fromString(groupId))
                     .map(StudyGroup::getGroupName).orElse("a group");
             String preview = (in.body() != null && !in.body().isEmpty())
@@ -93,6 +93,50 @@ public class ChatController {
     public List<MessageView> history(@PathVariable String groupId) {
         return repo.findTop100ByGroupIdOrderBySentAtAsc(groupId).stream().map(this::toView).toList();
     }
+
+    /**
+     * Lists all 1-on-1 support conversations that exist for a given admin.
+     * Room keys have the form: support.{userId}.{adminId}
+     * Returns each conversation partner's userId, display name (from their own messages),
+     * the room key, and a preview of the last message.
+     */
+    @GetMapping("/api/support/conversations")
+    public List<SupportConversationView> supportConversations(@RequestParam String adminId) {
+        String suffix = "." + adminId;
+        List<String> roomKeys = repo.findSupportRoomsByAdminSuffix(suffix);
+        return roomKeys.stream()
+            .filter(roomKey -> {
+                // Only process properly-formed keys: support.{userId}.{adminId}
+                // The part after "support." must be LONGER than the suffix ".{adminId}"
+                // so that there is an actual userId between the dots.
+                // Old-format keys like "support.{adminId}" are skipped.
+                String withoutPrefix = roomKey.substring("support.".length());
+                return withoutPrefix.length() > suffix.length();
+            })
+            .map(roomKey -> {
+                String withoutPrefix = roomKey.substring("support.".length());
+                String userId = withoutPrefix.substring(0, withoutPrefix.length() - suffix.length());
+
+                // Resolve the display name from a message the USER sent (not the admin's reply).
+                // This ensures the inbox always shows the user's name as the conversation title.
+                String displayName = repo.findFirstBySenderInGroup(roomKey, userId)
+                        .map(ChatMessage::getSenderName)
+                        .orElse(userId); // fall back to userId if no message found
+
+                String lastMsg = null;
+                String lastSentAt = null;
+                var latest = repo.findLatestByGroupId(roomKey);
+                if (latest.isPresent()) {
+                    ChatMessage lm = latest.get();
+                    lastMsg = lm.getBody();
+                    lastSentAt = lm.getSentAt() != null ? lm.getSentAt().toString() : null;
+                }
+                return new SupportConversationView(roomKey, userId, displayName, lastMsg, lastSentAt);
+            }).toList();
+    }
+
+    public record SupportConversationView(String roomKey, String userId, String displayName, String lastMessage, String lastMessageAt) {}
+
 
     @PutMapping("/api/groups/{groupId}/messages/{messageId}")
     @Transactional
@@ -124,14 +168,9 @@ public class ChatController {
         broker.convertAndSend("/topic/group." + groupId, clearEvent);
     }
 
-    private static boolean isBookingRoom(String groupId) {
-        if (groupId == null || !groupId.startsWith("booking.")) return false;
-        try {
-            UUID.fromString(groupId.substring("booking.".length()));
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+    private static boolean isDirectRoom(String groupId) {
+        if (groupId == null) return false;
+        return groupId.startsWith("booking.") || groupId.startsWith("support.");
     }
 
     @PostMapping("/api/groups/{groupId}/upload")

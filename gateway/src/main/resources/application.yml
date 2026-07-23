@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   application:
     name: gateway
   cloud:
@@ -11,7 +11,7 @@
         - id: learning
           uri: http://learning-service:8080
           predicates:
-            - Path=/api/groups/**,/api/matching/**,/api/invites/**,/api/study/**
+            - Path=/api/groups/**,/api/matching/**,/api/invites/**,/api/study/**,/api/support/**
         # WebSocket (STOMP) chat is proxied through the gateway on :8080 so the
         # mobile app only needs the one API host/port it already reaches.
         - id: learning-ws

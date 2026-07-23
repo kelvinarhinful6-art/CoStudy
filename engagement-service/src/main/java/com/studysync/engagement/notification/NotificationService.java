@@ -61,6 +61,17 @@ public class NotificationService {
         return toResponse(n);
     }
 
+    @Transactional
+    public void markAllRead(String userId) {
+        List<Notification> list = repo.findByUserIdOrderByCreatedAtDesc(userId);
+        for (Notification n : list) {
+            if (!n.isRead()) {
+                n.setRead(true);
+            }
+        }
+        repo.saveAll(list);
+    }
+
     private NotificationResponse toResponse(Notification n) {
         return new NotificationResponse(n.getNotificationId().toString(), n.getUserId(),
                 n.getType(), n.getMessage(), n.isRead(), n.getCreatedAt().toString());

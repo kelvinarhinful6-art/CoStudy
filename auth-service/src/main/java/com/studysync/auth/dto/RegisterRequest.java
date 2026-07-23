@@ -11,6 +11,11 @@ public record RegisterRequest(
         @NotBlank String username,
         @Email @NotBlank String email,
         @NotBlank @Size(min = 8, message = "must be at least 8 characters") String password,
-        @NotNull UserType userType
+        @NotNull UserType userType,
+        String otpCode
 ) {
+    public RegisterRequest(String username, String email, String password, UserType userType) {
+        this(username, email, password, userType, null);
+    }
 }
+
