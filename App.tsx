@@ -22,6 +22,10 @@ import AnalyticsScreen from "./screens/AnalyticsScreen";
 import NotificationsScreen from "./screens/NotificationsScreen";
 import TutorEarningsScreen from "./screens/TutorEarningsScreen";
 import AdminRevenueScreen from "./screens/AdminRevenueScreen";
+import SupportListScreen from "./screens/SupportListScreen";
+import SupportChatScreen from "./screens/SupportChatScreen";
+import AdminDashboardScreen from "./screens/AdminDashboardScreen";
+import AdminTutorDetailScreen from "./screens/AdminTutorDetailScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -55,6 +59,10 @@ export default function App() {
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="TutorEarnings" component={TutorEarningsScreen} />
             <Stack.Screen name="AdminRevenue" component={AdminRevenueScreen} />
+            <Stack.Screen name="SupportList" component={SupportListScreen} />
+            <Stack.Screen name="SupportChat" component={SupportChatScreen} />
+            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+            <Stack.Screen name="AdminTutorDetail" component={AdminTutorDetailScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </View>

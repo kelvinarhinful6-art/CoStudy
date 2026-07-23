@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,7 +21,7 @@ import type { StackProps, StudySession } from "../types";
 
 export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer">) {
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState("focus");
+  const [mode, setMode] = useState<"focus" | "break">("focus");
   const [duration, setDuration] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -28,6 +29,7 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const endTimeRef = useRef<number | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -47,31 +49,41 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
   );
 
   useEffect(() => {
-    if (isActive && timeLeft > 0) {
-      intervalRef.current = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0) {
-      setIsActive(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      if (mode === "focus") {
-        Alert.alert("Focus Session Complete! 🎉", "Great job! Time for a well-deserved break.");
-        logSession(duration);
-        setMode("break");
-        setDuration(5);
-        setTimeLeft(5 * 60);
-      } else {
-        Alert.alert("Break Over! ⏰", "Ready for another focus session?");
-        setMode("focus");
-        setDuration(25);
-        setTimeLeft(25 * 60);
+    if (isActive) {
+      if (!endTimeRef.current) {
+        endTimeRef.current = Date.now() + timeLeft * 1000;
       }
+      intervalRef.current = setInterval(() => {
+        const remaining = Math.max(0, Math.ceil((endTimeRef.current! - Date.now()) / 1000));
+        setTimeLeft(remaining);
+        if (remaining <= 0) {
+          setIsActive(false);
+          endTimeRef.current = null;
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+          if (mode === "focus") {
+            Alert.alert("Focus Session Complete! 🎉", "Great job! Time for a well-deserved break.");
+            logSession(duration);
+            setMode("break");
+            setDuration(5);
+            setTimeLeft(5 * 60);
+          } else {
+            Alert.alert("Break Over! ⏰", "Ready for another focus session?");
+            setMode("focus");
+            setDuration(25);
+            setTimeLeft(25 * 60);
+          }
+        }
+      }, 500);
+    } else {
+      endTimeRef.current = null;
+      if (intervalRef.current) clearInterval(intervalRef.current);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isActive, timeLeft, mode]);
+  }, [isActive, mode, duration]);
 
   const logSession = async (minutes: number) => {
     if (minutes > 0) {
@@ -90,7 +102,38 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!isActive) {
+      endTimeRef.current = Date.now() + timeLeft * 1000;
+    } else {
+      endTimeRef.current = null;
+    }
     setIsActive(!isActive);
+  };
+
+  const stopTimer = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsActive(false);
+    endTimeRef.current = null;
+    if (mode === "focus" && timeLeft < duration * 60) {
+      const elapsedSecs = duration * 60 - timeLeft;
+      const elapsedMins = Math.max(1, Math.round(elapsedSecs / 60));
+      Alert.alert(
+        "Stop Study Session",
+        `Save completed ${elapsedMins} minute session for ${subject.trim() || "General"}?`,
+        [
+          { text: "Discard", style: "cancel", onPress: () => resetTimer() },
+          {
+            text: "Save Session",
+            onPress: () => {
+              logSession(elapsedMins);
+              resetTimer();
+            },
+          },
+        ]
+      );
+    } else {
+      resetTimer();
+    }
   };
 
   const changeDuration = (mins: number) => {
@@ -103,12 +146,7 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
   const resetTimer = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsActive(false);
-    if (mode === "focus" && timeLeft < duration * 60) {
-      const elapsedMins = Math.round((duration * 60 - timeLeft) / 60);
-      if (elapsedMins > 0) {
-        logSession(elapsedMins);
-      }
-    }
+    endTimeRef.current = null;
     setTimeLeft(duration * 60);
   };
 
@@ -131,7 +169,9 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
 
   return (
     <SkyBackground>
-      <View style={{ flex: 1, paddingTop: insets.top + 16, paddingHorizontal: 20 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 40 }}
+      >
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={26} color="#fff" />
@@ -150,7 +190,7 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
               }
             }}
           >
-            <Text style={[styles.modeBtnText, mode === "focus" && styles.modeBtnTextActive]}>Focus</Text>
+            <Text style={[styles.modeBtnText, mode === "focus" && styles.modeBtnTextActive]}>Focus Mode</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.modeBtn, mode === "break" && styles.modeBtnActive]}
@@ -162,16 +202,16 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
               }
             }}
           >
-            <Text style={[styles.modeBtnText, mode === "break" && styles.modeBtnTextActive]}>Break</Text>
+            <Text style={[styles.modeBtnText, mode === "break" && styles.modeBtnTextActive]}>Break Time</Text>
           </TouchableOpacity>
         </View>
 
         <BlurView intensity={mode === "focus" ? 30 : 20} tint="dark" style={styles.timerCard}>
-          <Text style={styles.modeLabel}>{mode === "focus" ? "Focus Mode" : "Break Time"}</Text>
+          <Text style={styles.modeLabel}>{mode === "focus" ? "🎯 Deep Focus" : "☕ Short Break"}</Text>
 
           <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
 
-          {/* Built-in Linear Progress Bar */}
+          {/* Linear Progress Bar */}
           <View style={styles.progressTrack}>
             <View
               style={[
@@ -184,7 +224,7 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
           {mode === "focus" && (
             <TextInput
               style={styles.subjectInput}
-              placeholder="What are you studying?"
+              placeholder="What subject are you studying?"
               placeholderTextColor="rgba(255,255,255,0.6)"
               value={subject}
               onChangeText={setSubject}
@@ -193,7 +233,7 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
 
           {!isActive && (
             <View style={styles.durationRow}>
-              {[15, 25, 50].map((m) => (
+              {[15, 25, 45, 60].map((m) => (
                 <TouchableOpacity
                   key={m}
                   style={[styles.durationChip, duration === m && styles.durationChipActive]}
@@ -209,6 +249,11 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
             <TouchableOpacity style={styles.controlBtn} onPress={toggleTimer}>
               <Ionicons name={isActive ? "pause-circle" : "play-circle"} size={64} color="#fff" />
             </TouchableOpacity>
+            {isActive && (
+              <TouchableOpacity style={styles.controlBtn} onPress={stopTimer}>
+                <Ionicons name="stop-circle" size={54} color="#ef4444" />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.controlBtn} onPress={resetTimer}>
               <Ionicons name="refresh-circle" size={44} color="rgba(255,255,255,0.6)" />
             </TouchableOpacity>
@@ -228,19 +273,43 @@ export default function StudyTimerScreen({ navigation }: StackProps<"StudyTimer"
             <BlurView intensity={24} tint="light" style={styles.statsCard}>
               <Ionicons name="checkmark-done-outline" size={24} color="#fff" />
               <Text style={styles.statsText}>{sessionsToday}</Text>
-              <Text style={styles.statsSub}>Sessions</Text>
+              <Text style={styles.statsSub}>Sessions Today</Text>
             </BlurView>
           </View>
         )}
-      </View>
+
+        <Text style={[styles.statsTitle, { marginTop: 24 }]}>Study Session History</Text>
+        {sessions.length === 0 ? (
+          <BlurView intensity={20} tint="light" style={styles.historyEmpty}>
+            <Ionicons name="journal-outline" size={24} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.historyEmptyText}>No sessions recorded yet. Start a focus session above!</Text>
+          </BlurView>
+        ) : (
+          sessions.slice(0, 5).map((s, idx) => {
+            const dateStr = s.sessionDate ? new Date(s.sessionDate).toLocaleDateString() : "Recent";
+            return (
+              <BlurView key={s.sessionId || idx} intensity={22} tint="light" style={styles.historyCard}>
+                <View style={styles.historyLeft}>
+                  <Ionicons name="book-outline" size={18} color="#fff" />
+                  <Text style={styles.historySubject}>{s.subject || "General Study"}</Text>
+                </View>
+                <View style={styles.historyRight}>
+                  <Text style={styles.historyDuration}>{s.durationMinutes} mins</Text>
+                  <Text style={styles.historyDate}>{dateStr}</Text>
+                </View>
+              </BlurView>
+            );
+          })
+        )}
+      </ScrollView>
     </SkyBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 24 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 20 },
   title: { color: colors.white, fontSize: 22, fontWeight: "600" },
-  modeToggle: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 12, padding: 4, marginBottom: 24 },
+  modeToggle: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 12, padding: 4, marginBottom: 20 },
   modeBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
   modeBtnActive: { backgroundColor: "rgba(11, 111, 142, 0.5)" },
   modeBtnText: { color: "rgba(255,255,255,0.6)", fontWeight: "600", fontSize: 14 },
@@ -253,7 +322,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.15)",
     marginBottom: 24,
   },
-  modeLabel: { color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 },
+  modeLabel: { color: "rgba(255,255,255,0.8)", fontSize: 14, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 },
   timerText: { color: "#fff", fontSize: 64, fontWeight: "700", fontVariant: ["tabular-nums"], marginBottom: 20 },
   progressTrack: { width: "100%", height: 8, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 4, overflow: "hidden", marginBottom: 24 },
   progressBar: { height: "100%", borderRadius: 4 },
@@ -262,7 +331,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.3)",
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     color: "#fff",
     fontSize: 14,
@@ -270,10 +339,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
   },
-  durationRow: { flexDirection: "row", justifyContent: "center", gap: 10, marginBottom: 20 },
+  durationRow: { flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 20 },
   durationChip: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.1)",
     borderWidth: 1,
@@ -282,9 +351,9 @@ const styles = StyleSheet.create({
   durationChipActive: { backgroundColor: "#fff", borderColor: "#fff" },
   durationText: { color: "#fff", fontWeight: "600", fontSize: 14 },
   durationTextActive: { color: "#0b6f8e" },
-  controlsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 20 },
+  controlsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 },
   controlBtn: { padding: 4 },
-  statsTitle: { color: "rgba(255,255,255,0.8)", fontSize: 16, fontWeight: "600", marginBottom: 12 },
+  statsTitle: { color: "rgba(255,255,255,0.85)", fontSize: 16, fontWeight: "600", marginBottom: 12 },
   statsRow: { flexDirection: "row", gap: 12 },
   statsCard: {
     flex: 1,
@@ -297,4 +366,29 @@ const styles = StyleSheet.create({
   },
   statsText: { color: "#fff", fontSize: 20, fontWeight: "700" },
   statsSub: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
+  historyEmpty: {
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    gap: 8,
+  },
+  historyEmptyText: { color: "rgba(255,255,255,0.7)", fontSize: 13, textAlign: "center" },
+  historyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  historyLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  historySubject: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  historyRight: { alignItems: "flex-end" },
+  historyDuration: { color: "#9fe6d4", fontSize: 13, fontWeight: "700" },
+  historyDate: { color: "rgba(255,255,255,0.5)", fontSize: 11 },
 });

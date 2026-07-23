@@ -40,6 +40,7 @@ import {
   leaveGroup,
   deleteGroup,
 } from "../api";
+import * as chatActivity from "../lib/chatActivity";
 import type { ChatMessage, GroupMember, LocalFile, StackProps, User } from "../types";
 
 const FILE_HOST = WS_URL.replace("ws://", "http://").replace("/ws", "");
@@ -191,6 +192,9 @@ export default function ChatScreen({ route, navigation }: StackProps<"Chat">) {
   };
 
   useEffect(() => {
+    // Mark this group as read the moment the user opens it.
+    chatActivity.markRead(groupId);
+
     let active = true;
     let timeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -240,6 +244,10 @@ export default function ChatScreen({ route, navigation }: StackProps<"Chat">) {
               return;
             }
             addMessage(parsed);
+            // Bump activity only for messages from OTHER users.
+            if (parsed.senderId && parsed.senderId !== me.userId && !parsed.isSystem) {
+              chatActivity.bumpActivity(groupId);
+            }
           } catch (e) {
             // ignore parse errors
           }
@@ -252,18 +260,28 @@ export default function ChatScreen({ route, navigation }: StackProps<"Chat">) {
       },
       onStompError: (frame) => {
         connectedRef.current = false;
-        console.error('[CHAT] STOMP error:', frame?.body || frame);
-        if (active) setConnState("offline");
+        if (active) {
+          console.log('[CHAT] STOMP error:', frame?.body || frame);
+          setConnState("offline");
+        }
       },
       onWebSocketError: (event) => {
         connectedRef.current = false;
-        console.error('[CHAT] WebSocket error:', event?.message || event);
-        if (active) setConnState("offline");
+        if (active) {
+          console.log('[CHAT] WebSocket error:', event?.message || event);
+          setConnState("offline");
+        }
       },
       onWebSocketClose: (event) => {
         connectedRef.current = false;
-        console.error('[CHAT] WebSocket closed:', event?.code || '', event?.reason || '');
-        if (active) setConnState("offline");
+        // Code 1000 = normal close (user navigated away). Guard with active to
+        // suppress any notification after the screen unmounts.
+        if (active && event?.code !== 1000) {
+          console.log('[CHAT] WebSocket closed unexpectedly:', event?.code, event?.reason);
+          setConnState("offline");
+        } else if (active) {
+          setConnState("offline");
+        }
       },
     });
     console.log('[CHAT] activating WS ->', WS_URL);

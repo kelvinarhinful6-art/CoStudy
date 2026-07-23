@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,6 +14,7 @@ export default function AdminRevenueScreen({ navigation }: StackProps<"AdminReve
   const [refreshing, setRefreshing] = useState(false);
   const [tutoringSessions, setTutoringSessions] = useState(0);
   const [tutoringRevenue, setTutoringRevenue] = useState(0);
+  const [latestCommission, setLatestCommission] = useState(0);
   const [currency, setCurrency] = useState("GHS");
   const [proTransactions, setProTransactions] = useState(0);
   const [proRevenueGhs, setProRevenueGhs] = useState(0);
@@ -23,6 +24,7 @@ export default function AdminRevenueScreen({ navigation }: StackProps<"AdminReve
       const [t, p] = await Promise.all([adminTutoringRevenue(), adminProRevenue()]);
       setTutoringSessions(t.sessions ?? 0);
       setTutoringRevenue(t.totalCommission ?? 0);
+      setLatestCommission(t.latestCommission ?? 0);
       setCurrency(t.currency ?? "GHS");
       setProTransactions(p.transactionCount ?? 0);
       setProRevenueGhs((p.totalAmountKobo ?? 0) / 100);
@@ -58,16 +60,27 @@ export default function AdminRevenueScreen({ navigation }: StackProps<"AdminReve
           <ActivityIndicator color="#fff" style={{ marginTop: 24 }} />
         ) : (
           <>
+            {/* New Revenue Received FIRST */}
+            <BlurView intensity={32} tint="light" style={styles.newRevCard}>
+              <View style={styles.badgeRow}>
+                <Ionicons name="sparkles" size={14} color="#22c55e" />
+                <Text style={styles.badgeText}>New Revenue Received</Text>
+              </View>
+              <Text style={styles.newAmount}>+ {latestCommission.toFixed(2)} {currency}</Text>
+              <Text style={styles.newSub}>Latest incoming platform commission received</Text>
+            </BlurView>
+
+            {/* Total App Revenue */}
             <BlurView intensity={30} tint="light" style={styles.heroCard}>
-              <Ionicons name="trending-up" size={32} color="#fff" />
+              <Ionicons name="trending-up" size={28} color="#fff" />
               <Text style={styles.heroAmount}>{total.toFixed(2)} {currency}</Text>
-              <Text style={styles.label}>Total revenue this year</Text>
+              <Text style={styles.label}>Total app revenue so far</Text>
             </BlurView>
 
             <Text style={styles.sectionLabel}>Tutoring session revenue</Text>
             <BlurView intensity={26} tint="light" style={styles.card}>
               <Text style={styles.amount}>{tutoringRevenue.toFixed(2)} {currency}</Text>
-              <Text style={styles.label}>{tutoringSessions} sessions completed (dev share)</Text>
+              <Text style={styles.label}>{tutoringSessions} sessions completed (platform share)</Text>
             </BlurView>
 
             <Text style={styles.sectionLabel}>Pro feature revenue</Text>
@@ -84,17 +97,32 @@ export default function AdminRevenueScreen({ navigation }: StackProps<"AdminReve
 
 const styles = StyleSheet.create({
   title: { color: "#fff", fontSize: 24, fontWeight: "600", marginBottom: 16 },
-  heroCard: {
+  newRevCard: {
     borderRadius: 20,
-    padding: 26,
+    padding: 22,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    overflow: "hidden",
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(34, 197, 94, 0.45)",
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+  },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(34, 197, 94, 0.2)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { color: "#4ade80", fontSize: 12, fontWeight: "700" },
+  newAmount: { color: "#4ade80", fontSize: 32, fontWeight: "800", marginVertical: 4 },
+  newSub: { color: "rgba(255,255,255,0.85)", fontSize: 12, textAlign: "center" },
+  heroCard: {
+    borderRadius: 18,
+    padding: 22,
+    alignItems: "center",
+    gap: 6,
     overflow: "hidden",
     marginBottom: 20,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.25)",
   },
-  heroAmount: { color: "#fff", fontSize: 30, fontWeight: "700" },
+  heroAmount: { color: "#fff", fontSize: 28, fontWeight: "700" },
   sectionLabel: { color: "rgba(255,255,255,0.9)", fontSize: 15, fontWeight: "600", marginBottom: 10 },
   card: {
     borderRadius: 16,
@@ -102,7 +130,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     overflow: "hidden",
-    marginBottom: 18,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
   },

@@ -24,9 +24,12 @@ async function request(path: string, options: RequestOptions = {}): Promise<any>
     throw new Error('Cannot reach the server. Check Wi-Fi and that the backend is running.');
   }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch (_) { /* not JSON */ }
   if (!res.ok) {
-    const msg = data && data.message ? data.message : `Request failed (${res.status})`;
+    let msg = data && data.message ? data.message : `Request failed (${res.status})`;
+    // Strip Java fully-qualified exception prefixes e.g. "com.studysync.auth.exception.UnauthorizedException: "
+    msg = msg.replace(/^(?:[a-z]\w*\.)+[A-Z]\w*:\s*/, '');
     throw new Error(msg);
   }
   return data;
@@ -36,20 +39,29 @@ function myId(): string {
   return session.user ? session.user.userId : '';
 }
 
+export async function requestOtp(email: string, username: string): Promise<any> {
+  return request('/api/auth/request-otp', {
+    method: 'POST',
+    body: { email, username },
+  });
+}
+
 export async function register(
   username: string,
   email: string,
   password: string,
-  userType = 'STUDENT'
+  userType = 'STUDENT',
+  otpCode?: string
 ): Promise<any> {
   const data = await request('/api/auth/register', {
     method: 'POST',
-    body: { username, email, password, userType },
+    body: { username, email, password, userType, otpCode },
   });
   session.token = data.accessToken;
   session.user = data.user as User;
   return data;
 }
+
 
 export async function login(usernameOrEmail: string, password: string): Promise<any> {
   const data = await request('/api/auth/login', {
@@ -83,9 +95,38 @@ export async function joinGroup(groupId: string): Promise<any> {
   });
 }
 
-export async function groupSuggestions(courseId: string): Promise<any> {
-  return request(`/api/groups/suggestions?courseId=${encodeURIComponent(courseId)}`);
+export async function groupSuggestions(courseId?: string): Promise<any> {
+  const cId = courseId || '';
+  const uId = myId();
+  return request(`/api/groups/suggestions?courseId=${encodeURIComponent(cId)}&userId=${encodeURIComponent(uId)}`);
 }
+
+export async function groupRecommendations(courseId?: string): Promise<any> {
+  return groupSuggestions(courseId);
+}
+
+
+// --- Session Reviews & Ratings (tutoring-service) ---
+export async function createReview(bookingId: string, rating: number, comment: string): Promise<any> {
+  return request('/api/reviews', {
+    method: 'POST',
+    body: { bookingId, rating, comment },
+  });
+}
+
+export async function updateReview(reviewId: string, rating: number, comment: string): Promise<any> {
+  return request(`/api/reviews/${encodeURIComponent(reviewId)}`, {
+    method: 'PUT',
+    body: { requestedBy: myId(), rating, comment },
+  });
+}
+
+export async function deleteReview(reviewId: string): Promise<any> {
+  return request(`/api/reviews/${encodeURIComponent(reviewId)}?requestedBy=${encodeURIComponent(myId())}`, {
+    method: 'DELETE',
+  });
+}
+
 
 export async function proStatus(): Promise<any> {
   return request(`/api/subscriptions/${encodeURIComponent(myId())}`);
@@ -403,13 +444,7 @@ export async function getStudySessions(): Promise<any> {
   return request(`/api/study/sessions?userId=${encodeURIComponent(myId())}`);
 }
 
-// --- Session Reviews & Ratings (tutoring-service) ---
-export async function createReview(bookingId: string, rating: number, comment: string): Promise<any> {
-  return request('/api/reviews', {
-    method: 'POST',
-    body: { bookingId, rating, comment },
-  });
-}
+// --- Session Reviews & Ratings (tutoring-service) are defined above ---
 
 // --- Analytics Dashboard (learning-service study time) ---
 export async function getAnalytics(days = 7): Promise<any> {
@@ -504,5 +539,47 @@ export async function adminTutoringRevenue(): Promise<any> {
 
 export async function adminProRevenue(): Promise<any> {
   return request('/api/payments/revenue/pro');
+}
+
+// --- Pre-Deployment Amendments API Helpers ---
+
+export async function confirmBookingPayment(bookingId: string, paymentReference: string): Promise<any> {
+  return request(`/api/bookings/${encodeURIComponent(bookingId)}/confirm-payment`, {
+    method: 'POST',
+    body: { paymentReference },
+  });
+}
+
+export async function getSupportAccounts(): Promise<any> {
+  return request('/api/auth/support-accounts');
+}
+
+export async function markAllNotificationsRead(): Promise<any> {
+  return request(`/api/notifications/read-all?userId=${encodeURIComponent(myId())}`, {
+    method: 'POST',
+  });
+}
+
+export async function adminDashboardTutors(): Promise<any> {
+  return request('/api/admin/dashboard/tutors');
+}
+
+export async function adminDashboardTutorDetail(tutorId: string): Promise<any> {
+  return request(`/api/admin/dashboard/tutors/${encodeURIComponent(tutorId)}`);
+}
+
+export async function adminMarkTutorPaid(tutorId: string, periodLabel: string): Promise<any> {
+  return request(`/api/admin/dashboard/tutors/${encodeURIComponent(tutorId)}/mark-paid`, {
+    method: 'POST',
+    body: { periodLabel },
+  });
+}
+
+export async function adminDashboardSummary(): Promise<any> {
+  return request('/api/admin/dashboard/summary');
+}
+
+export async function getSupportConversations(adminId: string): Promise<any> {
+  return request(`/api/support/conversations?adminId=${encodeURIComponent(adminId)}`);
 }
 

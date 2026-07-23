@@ -14,14 +14,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SkyBackground from "./SkyBackground";
 import { colors } from "../theme";
-import { createReview } from "../api";
+import { createReview, updateReview } from "../api";
 import type { StackProps } from "../types";
 
 export default function ReviewScreen({ route, navigation }: StackProps<"Review">) {
   const insets = useSafeAreaInsets();
-  const { bookingId, tutorName } = route.params;
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState("");
+  const { bookingId, tutorName, existingReviewId, initialRating, initialComment } = route.params;
+  const [rating, setRating] = useState(initialRating || 0);
+  const [comment, setComment] = useState(initialComment || "");
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
@@ -29,17 +29,33 @@ export default function ReviewScreen({ route, navigation }: StackProps<"Review">
       Alert.alert("Rate the session", "Please tap a star to rate your tutor.");
       return;
     }
+    const trimmed = comment.trim();
+    if (trimmed.length > 0 && trimmed.length < 5) {
+      Alert.alert("Review too short", "Please enter at least 5 characters for your review.");
+      return;
+    }
+    if (trimmed.length > 500) {
+      Alert.alert("Review too long", "Review comment cannot exceed 500 characters.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await createReview(bookingId, rating, comment.trim());
-      Alert.alert("Thanks!", "Your review was submitted.");
+      if (existingReviewId) {
+        await updateReview(existingReviewId, rating, trimmed);
+        Alert.alert("Updated! 🎉", "Your review has been updated successfully.");
+      } else {
+        await createReview(bookingId, rating, trimmed);
+        Alert.alert("Thanks! 🎉", "Your review was submitted successfully.");
+      }
       if (navigation.canGoBack()) navigation.goBack();
     } catch (e) {
-      Alert.alert("Could not submit review", (e as Error).message);
+      Alert.alert("Could not save review", (e as Error).message);
     } finally {
       setSubmitting(false);
     }
   };
+
 
   return (
     <SkyBackground>
@@ -57,7 +73,7 @@ export default function ReviewScreen({ route, navigation }: StackProps<"Review">
         </Text>
 
         <BlurView intensity={28} tint="light" style={styles.card}>
-          <Text style={styles.cardLabel}>Your rating</Text>
+          <Text style={styles.cardLabel}>Your rating (1 to 5 stars)</Text>
           <View style={styles.stars}>
             {[1, 2, 3, 4, 5].map((n) => (
               <TouchableOpacity key={n} onPress={() => setRating(n)} activeOpacity={0.7}>
@@ -70,13 +86,17 @@ export default function ReviewScreen({ route, navigation }: StackProps<"Review">
             ))}
           </View>
 
-          <Text style={styles.cardLabel}>Your review</Text>
+          <View style={styles.labelRow}>
+            <Text style={styles.cardLabel}>Your review</Text>
+            <Text style={styles.charCount}>{comment.length}/500</Text>
+          </View>
           <TextInput
             style={styles.input}
-            placeholder="Share what went well (optional)"
+            placeholder="Share your experience (min 5 characters)"
             placeholderTextColor="rgba(255,255,255,0.6)"
             value={comment}
             onChangeText={setComment}
+            maxLength={500}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -91,7 +111,7 @@ export default function ReviewScreen({ route, navigation }: StackProps<"Review">
             {submitting ? (
               <ActivityIndicator color="#0b6f8e" />
             ) : (
-              <Text style={styles.btnText}>Submit review</Text>
+              <Text style={styles.btnText}>Submit Review</Text>
             )}
           </TouchableOpacity>
         </BlurView>
@@ -112,6 +132,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.22)",
   },
   cardLabel: { color: "#fff", fontSize: 14, fontWeight: "600", marginBottom: 10, marginTop: 6 },
+  labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  charCount: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
   stars: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
   input: {
     backgroundColor: "rgba(255,255,255,0.14)",

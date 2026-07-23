@@ -14,19 +14,54 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import SkyBackground from "./SkyBackground";
-import { getNotifications, markNotificationRead } from "../api";
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from "../api";
 import type { AppNotification, StackProps } from "../types";
 
 function iconFor(type?: string): keyof typeof Ionicons.glyphMap {
   switch (type) {
-    case "CHAT":
-      return "chatbubble-outline";
-    case "INVITE":
-      return "mail-unread-outline";
-    case "BOOKING":
+    case "PAYMENT_SUCCESS":
+      return "checkmark-circle";
+    case "PAYMENT_FAILED":
+      return "close-circle";
+    case "BOOKING_NEW":
+    case "BOOKING_CONFIRMED":
+      return "calendar";
+    case "BOOKING_CANCELLED":
       return "calendar-outline";
+    case "SESSION_STARTED":
+      return "play-circle";
+    case "SESSION_COMPLETED":
+      return "checkmark-done-circle";
+    case "APPLICATION_APPROVED":
+      return "trophy";
+    case "APPLICATION_DECLINED":
+      return "sad-outline";
+    case "PRO_ACTIVATED":
+      return "star";
+    case "CHAT":
+      return "chatbubble";
     default:
-      return "notifications-outline";
+      return "notifications";
+  }
+}
+
+function iconColor(type?: string, isRead?: boolean): string {
+  if (isRead) return "rgba(255,255,255,0.7)";
+  switch (type) {
+    case "PAYMENT_SUCCESS":
+    case "SESSION_STARTED":
+    case "SESSION_COMPLETED":
+      return "#2ecc71";
+    case "PAYMENT_FAILED":
+    case "APPLICATION_DECLINED":
+      return "#e74c3c";
+    case "APPLICATION_APPROVED":
+    case "PRO_ACTIVATED":
+      return "#f1c40f";
+    case "BOOKING_CANCELLED":
+      return "#e67e22";
+    default:
+      return "#9fe6d4";
   }
 }
 
@@ -35,6 +70,7 @@ export default function NotificationsScreen({ navigation }: StackProps<"Notifica
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +93,18 @@ export default function NotificationsScreen({ navigation }: StackProps<"Notifica
   const onRefresh = () => {
     setRefreshing(true);
     load();
+  };
+
+  const handleMarkAllRead = async () => {
+    setMarkingAll(true);
+    try {
+      await markAllNotificationsRead();
+      setItems((prev) => prev.map((x) => ({ ...x, read: true })));
+    } catch (e) {
+      Alert.alert("Notice", (e as Error).message);
+    } finally {
+      setMarkingAll(false);
+    }
   };
 
   const open = async (n: AppNotification) => {
@@ -84,6 +132,17 @@ export default function NotificationsScreen({ navigation }: StackProps<"Notifica
           </TouchableOpacity>
           <Text style={styles.title}>Notifications</Text>
           {unread > 0 && <View style={styles.badge}><Text style={styles.badgeText}>{unread}</Text></View>}
+
+          <View style={{ flex: 1 }} />
+          {unread > 0 && (
+            <TouchableOpacity onPress={handleMarkAllRead} disabled={markingAll} style={styles.readAllBtn}>
+              {markingAll ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.readAllText}>Mark all read</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {loading ? (
@@ -101,7 +160,7 @@ export default function NotificationsScreen({ navigation }: StackProps<"Notifica
                 tint="light"
                 style={[styles.card, !n.read && styles.cardUnread]}
               >
-                <Ionicons name={iconFor(n.type)} size={22} color={n.read ? "rgba(255,255,255,0.7)" : "#9fe6d4"} />
+                <Ionicons name={iconFor(n.type)} size={22} color={iconColor(n.type, n.read)} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={[styles.msg, !n.read && styles.msgUnread]}>{n.message}</Text>
                   {!n.read && <Text style={styles.newTag}>New</Text>}
@@ -123,9 +182,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    marginLeft: 6,
+    marginLeft: 4,
   },
   badgeText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  readAllBtn: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  readAllText: { color: "#fff", fontSize: 12, fontWeight: "600" },
   empty: {
     borderRadius: 16,
     padding: 24,

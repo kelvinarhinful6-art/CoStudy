@@ -15,16 +15,29 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import SkyBackground from "./SkyBackground";
-import { session, proStatus, myBookings, cancelBooking, myApplications, updateProfile, deleteBooking, listUsers, deleteApplication, resignApplication } from "../api";
-import type { Booking, TabProps, TutorApplication, User } from "../types";
+import { session, proStatus, myBookings, cancelBooking, myApplications, updateProfile, deleteBooking, listUsers, deleteApplication, resignApplication, tutorReviews } from "../api";
+import type { Booking, TabProps, TutorApplication, User, Review } from "../types";
+
 
 const STATUS_COLORS: Record<string, string> = {
   APPROVED: "#1f9d6b",
   UNDER_REVIEW: "#c98a1b",
   REJECTED: "#c0392b",
-  AWAITING_DOCUMENTS: "#c98a1b",
+  AWAITING_DOCUMENTS: "#2980b9",
   RESIGNED: "#777",
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  APPROVED: "Approved ✓",
+  UNDER_REVIEW: "In Review",
+  REJECTED: "Rejected",
+  AWAITING_DOCUMENTS: "Awaiting Docs",
+  RESIGNED: "Resigned",
+};
+
+function statusLabel(s?: string): string {
+  return STATUS_LABELS[s || ""] || (s || "").replace(/_/g, " ");
+}
 
 export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
   const insets = useSafeAreaInsets();
@@ -32,6 +45,7 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
   const isAdmin = (user.userType || "").toUpperCase() === "ADMIN";
   const [isPro, setIsPro] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
+
   const [apps, setApps] = useState<TutorApplication[]>([]);
   const [usersById, setUsersById] = useState<Record<string, User>>({});
   const [loading, setLoading] = useState(true);
@@ -46,24 +60,52 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
   const [yearOfStudy, setYearOfStudy] = useState(user.yearOfStudy != null ? String(user.yearOfStudy) : "");
   const [tutorDisplayName, setTutorDisplayName] = useState(user.tutorDisplayName || "");
 
+  const [bookReviews, setBookReviews] = useState<Record<string, Review>>({});
+
+
   const load = useCallback(async () => {
     try {
       const [s, b, a, u] = await Promise.all([proStatus(), myBookings(), myApplications(), listUsers()]);
       setIsPro(!!s.active);
-      setBookings(Array.isArray(b) ? b : []);
+      const bList = Array.isArray(b) ? b : [];
+      setBookings(bList);
       setApps(Array.isArray(a) ? a : []);
       const map: Record<string, User> = {};
       (Array.isArray(u) ? u : []).forEach((usr: User) => {
         map[usr.userId] = usr;
       });
       setUsersById(map);
+
+      // Fetch existing reviews for completed bookings
+      const completed = bList.filter(
+        (bk: Booking) => (bk.status || "").toUpperCase() === "COMPLETED" && bk.tutorId
+      );
+      const revMap: Record<string, Review> = {};
+      if (completed.length > 0) {
+        await Promise.all(
+          completed.map(async (bk: Booking) => {
+            try {
+              const res = await tutorReviews(bk.tutorId!);
+              const rList: Review[] = Array.isArray(res) ? res : (res?.reviews || []);
+              const mine = rList.find(
+                (r) => r.bookingId === bk.bookingId || r.studentId === user.userId
+              );
+              if (mine) revMap[bk.bookingId] = mine;
+            } catch (e) {
+              // ignore
+            }
+          })
+        );
+      }
+      setBookReviews(revMap);
     } catch (e) {
       // ignore
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user.userId]);
+
 
   const onWithdraw = (app: TutorApplication) => {
     Alert.alert(
@@ -188,7 +230,17 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
         contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: 90 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
       >
-        <Text style={styles.title}>Profile</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <Text style={styles.title}>Profile</Text>
+          <TouchableOpacity
+            style={styles.supportBadge}
+            onPress={() => navigation.navigate("SupportList")}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#fff" />
+            <Text style={styles.supportBadgeText}>Help & Support</Text>
+          </TouchableOpacity>
+        </View>
 
         <BlurView intensity={30} tint="light" style={styles.headCard}>
           <View style={styles.avatar}>
@@ -332,6 +384,19 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
         )}
 
         {isAdmin && (
+          <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate("AdminDashboard")}>
+            <BlurView intensity={28} tint="light" style={styles.actionCard}>
+              <Ionicons name="stats-chart" size={22} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionTitle}>Admin Dashboard</Text>
+                <Text style={styles.actionSub}>Tutor monthly payouts & platform summary</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+            </BlurView>
+          </TouchableOpacity>
+        )}
+
+        {isAdmin && (
           <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate("AdminRevenue")}>
             <BlurView intensity={28} tint="light" style={styles.actionCard}>
               <Ionicons name="trending-up" size={22} color="#fff" />
@@ -375,34 +440,52 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
             <Text style={styles.sectionLabel}>My applications</Text>
             {apps.map((a) => (
               <BlurView key={a.applicationId} intensity={24} tint="light" style={styles.appCard}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() =>
-                    a.status === "AWAITING_DOCUMENTS"
-                      ? navigation.navigate("BecomeTutor", { appId: a.applicationId, courseId: a.courseId })
-                      : Alert.alert("Application Status", "Your application is currently: " + a.status?.replace("_", " "))
-                  }
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.appCourse}>{a.courseId}</Text>
-                      <Text style={styles.appMeta}>Attempts used: {a.attemptsUsed}</Text>
-                    </View>
-                    <View style={[styles.statusPill, { backgroundColor: STATUS_COLORS[a.status || ""] || "#777" }]}>
-                      <Text style={styles.statusText}>{(a.status || "").replace("_", " ")}</Text>
-                    </View>
+                {/* Course + status header */}
+                <View style={styles.appHeader}>
+                  <View style={styles.appIconCircle}>
+                    <Ionicons name="school" size={18} color="#0b6f8e" />
                   </View>
-                </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.appCourse}>{a.courseId}</Text>
+                    <Text style={styles.appMeta}>Tutor Application · {a.attemptsUsed} attempt{a.attemptsUsed !== 1 ? "s" : ""}</Text>
+                  </View>
+                  <View style={[styles.statusPill, { backgroundColor: STATUS_COLORS[a.status || ""] || "#777" }]}>
+                    <Text style={styles.statusText}>{statusLabel(a.status)}</Text>
+                  </View>
+                </View>
+
+                {/* Action buttons */}
                 {(a.status === "AWAITING_DOCUMENTS" || a.status === "UNDER_REVIEW") && (
-                  <TouchableOpacity style={styles.withdrawBtn} onPress={() => onWithdraw(a)} activeOpacity={0.85}>
-                    <Ionicons name="trash-outline" size={16} color="#ff4d4d" />
-                    <Text style={styles.withdrawText}>Withdraw application</Text>
-                  </TouchableOpacity>
+                  <View style={styles.appActions}>
+                    {a.status === "AWAITING_DOCUMENTS" && (
+                      <TouchableOpacity
+                        style={styles.appBtnPrimary}
+                        activeOpacity={0.85}
+                        onPress={() => navigation.navigate("BecomeTutor", { appId: a.applicationId, courseId: a.courseId })}
+                      >
+                        <Ionicons name="arrow-forward-circle-outline" size={15} color="#0b6f8e" />
+                        <Text style={styles.appBtnPrimaryText}>Continue</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={styles.appBtnDanger}
+                      activeOpacity={0.85}
+                      onPress={() => onWithdraw(a)}
+                    >
+                      <Ionicons name="trash-outline" size={15} color="#ff4d4d" />
+                      <Text style={styles.appBtnDangerText}>Withdraw</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
+
                 {a.status === "APPROVED" && (
-                  <TouchableOpacity style={styles.resignBtn} onPress={() => onResign(a)} activeOpacity={0.85}>
-                    <Ionicons name="exit-outline" size={16} color="#ff4d4d" />
-                    <Text style={styles.resignText}>Resign as tutor</Text>
+                  <TouchableOpacity
+                    style={styles.appBtnDanger}
+                    activeOpacity={0.85}
+                    onPress={() => onResign(a)}
+                  >
+                    <Ionicons name="exit-outline" size={15} color="#ff4d4d" />
+                    <Text style={styles.appBtnDangerText}>Resign as Tutor</Text>
                   </TouchableOpacity>
                 )}
               </BlurView>
@@ -422,6 +505,9 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
           bookings.map((b) => {
             const tutorInfo = usersById[b.tutorId || ""];
             const tutorDisplayName = tutorInfo ? tutorInfo.tutorDisplayName || tutorInfo.username : "Tutor";
+            const isPendingPayment = b.status === "PENDING_PAYMENT";
+            const displayStatus = isPendingPayment ? "Awaiting Payment" : b.status;
+
             return (
               <BlurView key={b.bookingId} intensity={24} tint="light" style={styles.bookCard}>
                 <View style={styles.bookTop}>
@@ -431,17 +517,63 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={styles.bookAmount}>{b.grossAmount} {b.currency}</Text>
-                    <Text style={styles.bookStatus}>{b.status}</Text>
+                    <Text style={[styles.bookStatus, isPendingPayment && { color: "#ffb454", fontWeight: "700" }]}>
+                      {displayStatus}
+                    </Text>
                   </View>
                 </View>
-                <TouchableOpacity
-                  style={styles.msgTutorBtn}
-                  onPress={() => navigation.navigate("SessionChat", { bookingId: b.bookingId, title: "Session: " + b.courseId })}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="chatbubbles-outline" size={15} color="#fff" />
-                  <Text style={styles.msgTutorText}>Message tutor / join</Text>
-                </TouchableOpacity>
+                {!isPendingPayment && (
+                  <TouchableOpacity
+                    style={styles.msgTutorBtn}
+                    onPress={() => navigation.navigate("SessionChat", { bookingId: b.bookingId, title: "Session: " + b.courseId })}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="chatbubbles-outline" size={15} color="#fff" />
+                    <Text style={styles.msgTutorText}>Message tutor / join</Text>
+                  </TouchableOpacity>
+                )}
+                {b.status === "COMPLETED" && (
+                  bookReviews[b.bookingId] ? (
+                    <View style={styles.ratedContainer}>
+                      <View style={styles.ratedBadge}>
+                        <Ionicons name="star" size={14} color="#ffd166" />
+                        <Text style={styles.ratedText}>
+                          Rated {bookReviews[b.bookingId].rating}/5
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.editReviewBtn}
+                        onPress={() =>
+                          navigation.navigate("Review", {
+                            bookingId: b.bookingId,
+                            tutorId: b.tutorId || "",
+                            tutorName: tutorDisplayName,
+                          })
+                        }
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="create-outline" size={13} color="#0b6f8e" />
+                        <Text style={styles.editReviewText}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.rateTutorBtn}
+                      onPress={() =>
+                        navigation.navigate("Review", {
+                          bookingId: b.bookingId,
+                          tutorId: b.tutorId || "",
+                          tutorName: tutorDisplayName,
+                        })
+                      }
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="star" size={16} color="#ffd166" />
+                      <Text style={styles.rateTutorBtnText}>Rate Tutor</Text>
+                    </TouchableOpacity>
+                  )
+                )}
+
                 {canCancel(b.status) && (
                   <TouchableOpacity
                     style={styles.cancelBtn}
@@ -498,7 +630,19 @@ export default function ProfileScreen({ navigation }: TabProps<"Profile">) {
 }
 
 const styles = StyleSheet.create({
-  title: { color: "#fff", fontSize: 24, fontWeight: "600", marginBottom: 16 },
+  title: { color: "#fff", fontSize: 24, fontWeight: "600" },
+  supportBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  supportBadgeText: { color: "#fff", fontSize: 13, fontWeight: "600" },
   headCard: {
     borderRadius: 20,
     padding: 22,
@@ -566,45 +710,53 @@ const styles = StyleSheet.create({
   actionSub: { color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 2 },
   sectionLabel: { color: "rgba(255,255,255,0.9)", fontSize: 15, fontWeight: "600", marginBottom: 12, marginTop: 10 },
   appCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
     overflow: "hidden",
-    marginBottom: 10,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
   },
-  appCourse: { color: "#fff", fontSize: 15, fontWeight: "600" },
-  appMeta: { color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 2 },
-  statusPill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  statusText: { color: "#fff", fontWeight: "700", fontSize: 11 },
-  withdrawBtn: {
+  appHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  appIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  appCourse: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  appMeta: { color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 2 },
+  statusPill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, flexShrink: 0 },
+  statusText: { color: "#fff", fontWeight: "700", fontSize: 10 },
+  appActions: { flexDirection: "row", gap: 8, marginTop: 14 },
+  appBtnPrimary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+  },
+  appBtnPrimaryText: { color: "#0b6f8e", fontWeight: "700", fontSize: 13 },
+  appBtnDanger: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
     marginTop: 10,
+    paddingVertical: 10,
     borderRadius: 10,
-    paddingVertical: 9,
+    backgroundColor: "rgba(255,77,77,0.1)",
     borderWidth: 1,
-    borderColor: "rgba(255,77,77,0.5)",
-    backgroundColor: "rgba(255,77,77,0.12)",
+    borderColor: "rgba(255,77,77,0.4)",
   },
-  withdrawText: { color: "#ff4d4d", fontWeight: "600", fontSize: 13 },
-  resignBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 10,
-    borderRadius: 10,
-    paddingVertical: 9,
-    borderWidth: 1,
-    borderColor: "rgba(255,77,77,0.5)",
-    backgroundColor: "rgba(255,77,77,0.12)",
-  },
-  resignText: { color: "#ff4d4d", fontWeight: "600", fontSize: 13 },
+  appBtnDangerText: { color: "#ff4d4d", fontWeight: "700", fontSize: 13 },
   empty: {
     borderRadius: 16,
     padding: 22,
@@ -667,6 +819,33 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.3)",
   },
   msgTutorText: { color: "#fff", fontWeight: "600", fontSize: 13 },
+  rateTutorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  rateTutorBtnText: { color: "#0b6f8e", fontSize: 14, fontWeight: "700" },
+  ratedContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 209, 102, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 209, 102, 0.4)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  ratedBadge: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  ratedText: { color: "#ffe8a3", fontSize: 13, fontWeight: "600" },
+  editReviewBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fff", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  editReviewText: { color: "#0b6f8e", fontSize: 12, fontWeight: "700" },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -681,3 +860,4 @@ const styles = StyleSheet.create({
   },
   logoutText: { color: "#fff", fontWeight: "600", fontSize: 15 },
 });
+
