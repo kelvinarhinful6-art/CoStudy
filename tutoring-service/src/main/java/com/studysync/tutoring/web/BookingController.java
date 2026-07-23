@@ -22,6 +22,13 @@ public class BookingController {
         return service.create(req);
     }
 
+    public record ConfirmPaymentRequest(String paymentReference) {}
+
+    @PostMapping("/{id}/confirm-payment")
+    public BookingResponse confirmPayment(@PathVariable UUID id, @RequestBody ConfirmPaymentRequest req) {
+        return service.confirmPayment(id, req.paymentReference());
+    }
+
     @GetMapping("/{id}")
     public BookingResponse get(@PathVariable UUID id) { return service.get(id); }
 

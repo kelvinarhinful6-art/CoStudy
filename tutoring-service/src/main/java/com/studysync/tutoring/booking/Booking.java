@@ -25,6 +25,9 @@ public class Booking {
     @Column(nullable = false) private String currency;
     @Column(name = "zoom_link") private String zoomLink;
 
+    @Column(name = "payment_reference") private String paymentReference;
+    @Column(name = "payment_verified") private Boolean paymentVerified = false;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false) private BookingStatus status;
 
@@ -55,8 +58,13 @@ public class Booking {
     public void setTutorEarning(double v) { this.tutorEarning = v; }
     public String getCurrency() { return currency; }
     public void setCurrency(String v) { this.currency = v; }
+    public String getPaymentReference() { return paymentReference; }
+    public void setPaymentReference(String v) { this.paymentReference = v; }
+    public Boolean isPaymentVerified() { return paymentVerified != null && paymentVerified; }
+    public void setPaymentVerified(Boolean v) { this.paymentVerified = v != null && v; }
     public BookingStatus getStatus() { return status; }
     public void setStatus(BookingStatus v) { this.status = v; }
     public String getZoomLink() { return zoomLink; }
     public void setZoomLink(String v) { this.zoomLink = v; }
+    public Instant getCreatedAt() { return createdAt; }
 }

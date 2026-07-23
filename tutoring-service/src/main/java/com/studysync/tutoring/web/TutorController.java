@@ -6,6 +6,7 @@ import com.studysync.tutoring.service.BookingService;
 import com.studysync.tutoring.service.ReviewService;
 import com.studysync.tutoring.service.VettingService;
 import com.studysync.tutoring.subscription.SubscriptionService;
+import com.studysync.tutoring.vetting.ApplicationStatus;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/tutors")
@@ -31,9 +33,13 @@ public class TutorController {
 
     // Browsing tutors is a Pro feature.
     @GetMapping
-    public List<String> approved(@RequestParam String courseId, @RequestParam String userId) {
+    public List<String> approved(@RequestParam(required = false) String courseId, @RequestParam String userId) {
         if (!subscriptions.isPro(userId)) {
             throw new ForbiddenException("Pro subscription required to access tutors");
+        }
+        // When no courseId is given (or blank) return all approved tutors across all courses.
+        if (courseId == null || courseId.isBlank()) {
+            return vetting.allApprovedTutors();
         }
         return vetting.approvedTutors(courseId);
     }

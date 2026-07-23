@@ -4,12 +4,16 @@ import com.studysync.tutoring.booking.*;
 import com.studysync.tutoring.dto.CreateReviewRequest;
 import com.studysync.tutoring.dto.ReviewResponse;
 import com.studysync.tutoring.dto.TutorReviews;
+import com.studysync.tutoring.dto.UpdateReviewRequest;
 import com.studysync.tutoring.exception.BadRequestException;
+import com.studysync.tutoring.exception.ForbiddenException;
 import com.studysync.tutoring.exception.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -52,13 +56,46 @@ public class ReviewService {
         return toResponse(r);
     }
 
+    @Transactional
+    public ReviewResponse update(UUID reviewId, UpdateReviewRequest req) {
+        Review r = reviews.findById(reviewId)
+                .orElseThrow(() -> new NotFoundException("review not found"));
+        if (req.requestedBy() != null && !req.requestedBy().isBlank() && !req.requestedBy().equals(r.getStudentId())) {
+            throw new ForbiddenException("you can only edit your own reviews");
+        }
+        r.setRating(req.rating());
+        if (req.comment() != null) {
+            r.setComment(req.comment().trim());
+        }
+        reviews.save(r);
+        return toResponse(r);
+    }
+
+    @Transactional
+    public void delete(UUID reviewId, String requestedBy) {
+        Review r = reviews.findById(reviewId)
+                .orElseThrow(() -> new NotFoundException("review not found"));
+        if (requestedBy != null && !requestedBy.isBlank() && !requestedBy.equals(r.getStudentId())) {
+            throw new ForbiddenException("you can only delete your own reviews");
+        }
+        reviews.delete(r);
+    }
+
     @Transactional(readOnly = true)
     public TutorReviews forTutor(String tutorId) {
         List<Review> list = reviews.findByTutorId(tutorId);
         double avg = list.isEmpty() ? 0.0
                 : Math.round(list.stream().mapToInt(Review::getRating).average().orElse(0) * 100.0) / 100.0;
+
+        Map<Integer, Integer> dist = new HashMap<>();
+        for (int i = 1; i <= 5; i++) dist.put(i, 0);
+        for (Review r : list) {
+            int star = Math.max(1, Math.min(5, r.getRating()));
+            dist.put(star, dist.getOrDefault(star, 0) + 1);
+        }
+
         List<ReviewResponse> mapped = list.stream().map(this::toResponse).toList();
-        return new TutorReviews(tutorId, avg, list.size(), mapped);
+        return new TutorReviews(tutorId, avg, list.size(), mapped, dist);
     }
 
     private ReviewResponse toResponse(Review r) {
@@ -67,3 +104,4 @@ public class ReviewService {
                 r.getCreatedAt().toString());
     }
 }
+

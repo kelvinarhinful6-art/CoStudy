@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
+import com.studysync.tutoring.client.NotificationClient;
+
 @Service
 public class VettingService {
     private static final double DEFAULT_HOURLY_RATE = 50.0;
@@ -14,9 +16,10 @@ public class VettingService {
     private static final int MAX_APPLICATIONS_PER_COURSE = 3;
     private final TutorApplicationRepository apps;
     private final AdminReviewRepository reviews;
+    private final NotificationClient notificationClient;
 
-    public VettingService(TutorApplicationRepository apps, AdminReviewRepository reviews) {
-        this.apps = apps; this.reviews = reviews;
+    public VettingService(TutorApplicationRepository apps, AdminReviewRepository reviews, NotificationClient notificationClient) {
+        this.apps = apps; this.reviews = reviews; this.notificationClient = notificationClient;
     }
 
     @Transactional
@@ -82,6 +85,15 @@ public class VettingService {
         AdminReview r = new AdminReview();
         r.setApplicationId(a.getApplicationId()); r.setAdminId(req.adminId()); r.setDecision(a.getStatus().name()); r.setNotes(req.notes());
         reviews.save(r);
+
+        if (approve) {
+            notificationClient.notify(a.getUserId(), "APPLICATION_APPROVED",
+                    "Congratulations! Your tutor application for " + a.getCourseId() + " has been approved.");
+        } else {
+            notificationClient.notify(a.getUserId(), "APPLICATION_DECLINED",
+                    "Your tutor application for " + a.getCourseId() + " was declined.");
+        }
+
         return toResponse(a);
     }
 
@@ -117,6 +129,11 @@ public class VettingService {
 
     @Transactional(readOnly = true)
     public List<String> approvedTutors(String courseId) { return apps.findByStatusAndCourseId(ApplicationStatus.APPROVED, courseId).stream().map(TutorApplication::getUserId).distinct().toList(); }
+
+    /** Returns all approved tutor user IDs across every course (used when no course filter is specified). */
+    @Transactional(readOnly = true)
+    public List<String> allApprovedTutors() { return apps.findByStatus(ApplicationStatus.APPROVED).stream().map(TutorApplication::getUserId).distinct().collect(java.util.stream.Collectors.toList()); }
+
 
     private TutorApplication load(UUID id) { return apps.findById(id).orElseThrow(() -> new NotFoundException("not found")); }
     private ApplicationResponse toResponse(TutorApplication a) { return new ApplicationResponse(a.getApplicationId().toString(), a.getUserId(), a.getCourseId(), a.getStatus().name(), a.getAttemptsUsed(), a.getDocumentRef(), Boolean.TRUE.equals(a.isRegisteredCourse())); }

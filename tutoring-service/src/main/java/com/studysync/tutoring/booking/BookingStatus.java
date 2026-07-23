@@ -1,3 +1,3 @@
 package com.studysync.tutoring.booking;
 
-public enum BookingStatus { CONFIRMED, COMPLETED, CANCELLED }
+public enum BookingStatus { PENDING_PAYMENT, CONFIRMED, COMPLETED, CANCELLED }

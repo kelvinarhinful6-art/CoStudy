@@ -9,19 +9,24 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 
+import com.studysync.tutoring.client.NotificationClient;
+
 @Service
 public class SubscriptionService {
 
     private final SubscriptionRepository repo;
+    private final NotificationClient notificationClient;
     private final double proPrice;
     private final String currency;
     private final int proMonths;
 
     public SubscriptionService(SubscriptionRepository repo,
+                               NotificationClient notificationClient,
                                @Value("${billing.pro.price:49.99}") double proPrice,
                                @Value("${billing.pro.currency:GHS}") String currency,
                                @Value("${billing.pro.months:1}") int proMonths) {
         this.repo = repo;
+        this.notificationClient = notificationClient;
         this.proPrice = proPrice;
         this.currency = currency;
         this.proMonths = proMonths;
@@ -56,6 +61,10 @@ public class SubscriptionService {
         s.setStartedAt(now);
         s.setExpiresAt(now.plus(Duration.ofDays(30L * proMonths)));
         repo.save(s);
+
+        notificationClient.notify(userId, "PRO_ACTIVATED",
+                "Welcome to CoStudy Pro! You now have access to all premium features.");
+
         return toResponse(s);
     }
 

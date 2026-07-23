@@ -1,7 +1,8 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY . .
-RUN mvn -q -pl tutoring-service -am -DskipTests package
+RUN --mount=type=cache,target=/root/.m2 mvn -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.http.retryHandler.count=5 -q -pl tutoring-service -am -DskipTests package
+
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

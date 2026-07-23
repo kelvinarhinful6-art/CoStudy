@@ -6,5 +6,6 @@ import jakarta.validation.constraints.Positive;
 public record CreateBookingRequest(
         @NotBlank String studentId,
         @NotBlank String tutorId,
-        @NotBlank String courseId,
+        String courseId,
         @Positive double hours) {}
+
